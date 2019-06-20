@@ -8,7 +8,6 @@ import torch.optim as optim
 import torch.utils.data as Data
 import torch.nn.functional as F
 
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=100)
@@ -34,7 +33,7 @@ def accuracy(preds, y):
     return acc
 
 def train(args):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
     model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, args.choice_hidden_size, args.choice_hidden_size)
@@ -55,12 +54,12 @@ def train(args):
         model.train()
         running_loss = 0
         running_acc = 0
-        for batch_index, (text, image, question, choice, answer) in enumerate(train_loader):
+        for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(train_loader)):
             # zero the parameter gradients
             optimizer.zero_grad()
             # forward + backward + optimize
             outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
-            outputs = torch.cat(outputs, 0).view(-1, args.batch_size).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+            outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
             loss = criterion(outputs, torch.LongTensor(answer).to(device)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
             loss.backward()
             optimizer.step()
