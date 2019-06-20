@@ -34,9 +34,11 @@ def accuracy(preds, y):
     return acc
 
 def train(args):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
     model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, args.choice_hidden_size, args.choice_hidden_size)
+    model = model.to(device)
     # initialize optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     # initialize loss function
@@ -59,7 +61,7 @@ def train(args):
             # forward + backward + optimize
             outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
             outputs = torch.cat(outputs, 0).view(-1, args.batch_size).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-            loss = criterion(outputs, torch.LongTensor(answer)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+            loss = criterion(outputs, torch.LongTensor(answer).to(device)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
             loss.backward()
             optimizer.step()
             # statistics
@@ -79,7 +81,7 @@ def train(args):
                 # forward + compute loss and accuracy
                 outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
                 outputs = torch.cat(outputs, 0).view(-1, args.batch_size).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                loss = criterion(outputs, answer) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+                loss = criterion(outputs, torch.LongTensor(answer).to(device)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
                 # statistics
                 val_loss += loss.item() 
                 val_acc += accuracy(outputs, answer)
