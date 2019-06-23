@@ -11,11 +11,11 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=100)
-    parser.add_argument("--num_epochs", type=int, default=5)
+    parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=256)
-    parser.add_argument("--choice_hidden_size", type=int, default=256) #choice_hidden_size == attention output dimension
+    parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size == attention output dimension
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
     parser.add_argument("--log_path", type=str, default="result/log_data.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
@@ -32,6 +32,18 @@ def accuracy(preds, y):
     acc = correct/len(y)
     return acc
 
+def save_model(epoch, model, optimizer,loss, accuracy, saved_path):
+    torch.save({
+            'epoch': epoch+1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss,
+            'accuracy': accuracy,
+            },
+               '%s/impatientReader_epoch_%d_%f_acc.pth' % (saved_path, epoch,accuracy))
+    print('Save model with accuracy:',accuracy)
+
+
 def train(args):
     device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     #### Initialization
@@ -43,6 +55,15 @@ def train(args):
     # initialize loss function
     criterion = nn.CrossEntropyLoss()
 
+    
+    ### train with existing model
+    if args.load_model is not None:
+        checkpoint = torch.load(args.load_model)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        loss = checkpoint['loss']
+    
     ### loop epochs
     max_val_acc = 0
     for epoch in tqdm(range(args.num_epochs)):
@@ -69,8 +90,8 @@ def train(args):
         
         ### validating:
         #1. get validation data
-        val_dataset = recipeDataset(cleanFile='./data/hierarchy/val_cleaned.json', rawFile='./data/val.json', task='textual_cloze', structure='hierarchy')
-        val_loader = Data.DataLoader(val_dataset, batch_size=2, shuffle=True, collate_fn=collate_hierarchy_wrapper)
+        val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
+        val_loader = Data.DataLoader(val_dataset, batch_size=10, shuffle=True, collate_fn=collate_batch_wrapper)
         #2. validation all batches
         model.eval()
         val_loss = 0
@@ -79,19 +100,19 @@ def train(args):
             for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
                 # forward + compute loss and accuracy
                 outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                outputs = torch.cat(outputs, 0).view(-1, args.batch_size).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                loss = criterion(outputs, torch.LongTensor(answer).to(device)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+                validation_loss = criterion(outputs, torch.LongTensor(answer).to(device)) #outputs:(batch_size, num_classes_similarity), answer:(batch)
                 # statistics
-                val_loss += loss.item() 
+                val_loss += validation_loss.item() 
                 val_acc += accuracy(outputs, answer)
 
         # print every training epoch
         print('|Epoch %d | Training loss : %.3f | Training acc: %.2f | Validation loss: %.3f | Validation acc: %.2f' %
-                epoch + 1, running_loss, running_acc, val_loss, val_acc)
+                (epoch + 1, running_loss, running_acc, val_loss, val_acc))
 
         if val_acc > max_val_acc:
-            max_val_acc = valid_acc
-            save_model(model,epoch,val_acc,args.saved_path)
+            max_val_acc = val_acc
+            save_model(epoch, model, optimizer, loss, val_acc, args.saved_path)
 
     print('Training Finished')
 

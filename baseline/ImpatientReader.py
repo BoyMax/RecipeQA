@@ -52,7 +52,7 @@ class TextNet(nn.Module):
         return output, h_n
 
 class Attention(nn.Module):
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=512):
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100):
         super(Attention, self).__init__()
         self.questionNet = QuestionNet(q_features)
         self.textNet = TextNet(d_features)
@@ -86,16 +86,16 @@ class ChoiceNet(nn.Module):
     def __init__(self, hidden_size):
         super(ChoiceNet, self).__init__()
         self.embedding = Doc2Vec()
-        self.lstm = nn.LSTM(input_size=100, hidden_size=hidden_size, num_layers=3, batch_first=True)
+        #self.lstm = nn.LSTM(input_size=100, hidden_size=hidden_size, num_layers=3, batch_first=True)
     def forward(self, choices): #texts (batch_size, step_len, word_len)
         batch = []
         for choice in choices:
             embed_choice = self.embedding(choice) # shape of embed_text: (step_len, vector_dim)
             batch.append(embed_choice)
         # shape of batch: (batch_size, step_len, vector_dim)
-        output,(h_n, c_n) = self.lstm(torch.Tensor(batch)) # torch.Tensor(batch): covert list to tensor
+        #output,(h_n, c_n) = self.lstm(torch.Tensor(batch)) # torch.Tensor(batch): covert list to tensor
         #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
-        return output
+        return torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
 
 class ImpatientReaderModel(nn.Module):
     # d_features: document features
@@ -103,7 +103,7 @@ class ImpatientReaderModel(nn.Module):
     # c_features: choice features
     # m_features is in attention, g features is the output features of attention.
     # c_features should equals to g_feature for comparing the similarity
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=512, c_features=512): 
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100): 
         super(ImpatientReaderModel, self).__init__()
         self.attention = Attention(d_features, q_features, m_features, g_features)
         self.choice = ChoiceNet(c_features)
