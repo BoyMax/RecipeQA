@@ -47,7 +47,12 @@ class TextNet(nn.Module):
             embed_text = self.embedding(text) # shape of embed_text: (step_len, vector_dim)
             batch.append(embed_text)
         # shape of batch: (batch_size, step_len, vector_dim)
-        output,(h_n, c_n) = self.lstm(torch.Tensor(batch)) # torch.Tensor(batch): covert list to tensor
+        # torch.Tensor(batch): covert list to tensor
+        if torch.cuda.is_available(): 
+            batch = torch.Tensor(batch).cuda()
+        else:
+            batch = torch.Tensor(batch)
+        output,(h_n, c_n) = self.lstm(batch) 
         #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
         return output, h_n
 
@@ -71,7 +76,11 @@ class Attention(nn.Module):
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
         batch_size = question_output.size()[0]
         question_len = question_output.size()[1]
-        r = torch.zeros(batch_size, 1, self.r_dim) # the 2nd dimension=1 because there is no step dimension in r.
+        if torch.cuda.is_available(): 
+            r = torch.zeros(batch_size, 1, self.r_dim).cuda()
+        else:
+            r = torch.zeros(batch_size, 1, self.r_dim) # the 2nd dimension=1 because there is no step dimension in r.
+                    
         for i in range(question_len):
             m_i = torch.tanh(self.d_m(text_output) + self.r_m(r) + self.q_m(question_output[:,i,:]).unsqueeze(1)) #m_i(batch_size, step_len, m_dim)
             s_i = F.softmax(self.m_s(m_i), dim=1) # dim=1 means doing softman for steps 

@@ -46,7 +46,7 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
 
 
 def train(args):
-    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
     model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, args.choice_hidden_size, args.choice_hidden_size)
