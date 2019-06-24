@@ -93,8 +93,6 @@ class ChoiceNet(nn.Module):
             embed_choice = self.embedding(choice) # shape of embed_text: (step_len, vector_dim)
             batch.append(embed_choice)
         # shape of batch: (batch_size, step_len, vector_dim)
-        #output,(h_n, c_n) = self.lstm(torch.Tensor(batch)) # torch.Tensor(batch): covert list to tensor
-        #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
         return torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
 
 class ImpatientReaderModel(nn.Module):
@@ -106,24 +104,37 @@ class ImpatientReaderModel(nn.Module):
     def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100): 
         super(ImpatientReaderModel, self).__init__()
         self.attention = Attention(d_features, q_features, m_features, g_features)
-        self.choice = ChoiceNet(c_features)
+        self.choice = ChoiceNet(c_features) # for embedding
+        self.right_answer = QuestionNet(q_features)
+        self.wrong_answer = QuestionNet(q_features)
     
-    def forward(self, texts, questions, choices):
+    # choices(batch, 4, word_len)
+    # replaced_questions(2, batch, 4,word_len), replaced_questions[0,:,:,:] means right answers, replaced_questions[1,:,:,:] means wrong answers.
+    def forward(self, texts, questions, choices, replaced_questions):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
-        net_outputs = self.attention(texts, questions) 
+        g = self.attention(texts, questions) 
         # output(batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_output = self.choice(choices)
+        # r_h_n (num_layers * num_directions, batch, hidden_size)
+        r_o, r_h_n = self.right_answer(replaced_questions[0])
+        w_o, w_h_n = self.wrong_answer(replaced_questions[1])
         # choice_output: (batch_size, choice_len, c_dim)
         choice_len = choice_output.size()[1]
         similarity_scores = []
         for i in range(choice_len):
             choice_outputs= choice_output[:,i,:] #choice_output(batch_size, dim)
-            similarity = F.cosine_similarity(net_outputs, choice_outputs) #similarity(batch_size)
-            similarity_scores.append(similarity)
-        return similarity_scores #(choice_len, batch)
+            similarity = F.cosine_similarity(g, choice_outputs) #similarity(batch_size)
+            similarity_scores.append(similarity) # for accuracy 
+        
+        return similarity_scores, g, r_h_n[-1,:,:], w_h_n[-1,:,:]
+        # similarity_scores #(choice_len, batch)
 
 
-
-
-
-
+class HingeRankLoss(nn.Module):
+    def __init__(self, margin):
+        super().__init__()
+        self.margin = margin
+        self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+    def forward(self, g, p, n):
+        loss = torch.max(torch.zeros(p.size()[0]), self.margin-self.cos(g,p)+self.cos(g,n))
+        return torch.mean(loss)
