@@ -87,6 +87,10 @@ def train(args):
             optimizer.step()
             # statistics
             running_loss += loss.item() 
+            if torch.cuda.is_available():
+                answer = torch.LongTensor(answer).cuda()
+            else: 
+                answer = torch.LongTensor(answer)
             running_acc += accuracy(outputs, answer)
         epoch_train_loss = running_loss/len(train_loader)
         epoch_train_acc = running_acc/len(train_loader)
@@ -107,6 +111,10 @@ def train(args):
                 validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
                 # statistics
                 val_loss += validation_loss.item() 
+                if torch.cuda.is_available():
+                    answer = torch.LongTensor(answer).cuda()
+                else: 
+                    answer = torch.LongTensor(answer)
                 val_acc += accuracy(outputs, answer)
         epoch_val_loss = val_loss/len(val_loader)
         epoch_val_acc = val_acc/len(val_loader)
