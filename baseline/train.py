@@ -24,7 +24,6 @@ def get_args():
     return args
 
 def accuracy(preds, y):
-    y = torch.LongTensor(y)
     preds = F.softmax(preds, dim=1)
     correct = 0 
     pred = preds.max(1, keepdim=True)[1]
