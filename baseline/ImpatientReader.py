@@ -153,7 +153,7 @@ class HingeRankLoss(nn.Module):
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     def forward(self, g, p, n):
         if torch.cuda.is_available(): 
-            batch_zeros = torch.zeros(p.size()[0])).cuda()
+            batch_zeros = torch.zeros(p.size()[0]).cuda()
         else:
             batch_zeros = torch.zeros(p.size()[0])
         loss = torch.max(batch_zeros, self.margin-self.cos(g,p)+self.cos(g,n))
