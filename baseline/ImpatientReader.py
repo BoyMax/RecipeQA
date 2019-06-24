@@ -110,7 +110,7 @@ class ChoiceNet(nn.Module):
         else:
             batch = torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
         return batch
-        
+
 class ImpatientReaderModel(nn.Module):
     # d_features: document features
     # q_features: question features
@@ -152,5 +152,9 @@ class HingeRankLoss(nn.Module):
         self.margin = margin
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     def forward(self, g, p, n):
-        loss = torch.max(torch.zeros(p.size()[0]), self.margin-self.cos(g,p)+self.cos(g,n))
+        if torch.cuda.is_available(): 
+            batch_zeros = torch.zeros(p.size()[0])).cuda()
+        else:
+            batch_zeros = torch.zeros(p.size()[0])
+        loss = torch.max(batch_zeros, self.margin-self.cos(g,p)+self.cos(g,n))
         return torch.mean(loss)
