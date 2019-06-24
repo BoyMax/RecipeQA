@@ -94,7 +94,7 @@ def train(args):
         ### validating:
         #1. get validation data
         val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
-        val_loader = Data.DataLoader(val_dataset, batch_size=10, shuffle=True, collate_fn=collate_batch_wrapper)
+        val_loader = Data.DataLoader(val_dataset, batch_size=10, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
         #2. validation all batches
         model.eval()
         val_loss = 0
