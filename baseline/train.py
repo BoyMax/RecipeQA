@@ -17,7 +17,7 @@ def get_args():
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
-    parser.add_argument("--log_path", type=str, default="result/log_data.txt")
+    parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)
     args = parser.parse_args() 
@@ -43,6 +43,17 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
                '%s/IR_hingerank_epoch_%d_acc_%f.pth' % (saved_path, epoch,accuracy))
     print('Save model with accuracy:',accuracy)
 
+def log_data(log_path,train_loss,train_accuracy,val_loss,val_accuracy):
+    file = open(log_path,'a')
+    if torch.cuda.is_available():
+        data = str(train_loss) +' '+ str(f'{train_accuracy:.2f}') \
+            +' '+ str(val_loss)+ ' ' + str(f'{val_accuracy:.2f}')
+    else:
+        data = str(train_loss) + ' '+ str(f'{train_accuracy:.2f}') \
+                +' '+str(val_loss)+' '+str(f'{val_accuracy:.2f}')
+    file.write(data)
+    file.write('\n')
+    file.close() 
 
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -118,12 +129,13 @@ def train(args):
         epoch_val_loss = val_loss/len(val_loader)
         epoch_val_acc = val_acc/len(val_loader)
 
+        log_data(args.log_path, epoch_train_loss, epoch_train_acc, epoch_val_loss, epoch_val_acc)
         # print every training epoch
         print('|Epoch %d | Training loss : %.3f | Training acc: %.2f | Validation loss: %.3f | Validation acc: %.2f' %
                 (epoch + 1, epoch_train_loss, epoch_train_acc, epoch_val_loss, epoch_val_acc))
 
-        if epoch_val_loss > max_val_acc:
-            max_val_acc = epoch_val_loss
+        if epoch_val_acc > max_val_acc:
+            max_val_acc = epoch_val_acc
             save_model(epoch, model, optimizer, loss, validation_loss, epoch_val_acc, args.saved_path)
 
     print('Training Finished')
