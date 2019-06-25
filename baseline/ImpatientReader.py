@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Doc2Vec import load_model
 import numpy as np
-from allennlp.modules.elmo import Elmo, batch_to_ids
+#from allennlp.modules.elmo import Elmo, batch_to_ids
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -167,4 +167,8 @@ class Infersent(nn.Module):
         super().__init__()
         self.linear = nn.Linear(4 * c_features,1)
     def forward(self, g, c):
-        return self.linear(torch.cat((g, c, torch.abs(g - c), g * c), 1))
+        if torch.cuda.is_available(): 
+            infersent_similarity = torch.cat((g, c, torch.abs(g - c), g * c), 1).cuda()
+        else:
+            infersent_similarity = torch.cat((g, c, torch.abs(g - c), g * c), 1)
+        return self.linear(infersent_similarity)
