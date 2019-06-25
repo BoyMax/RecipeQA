@@ -67,7 +67,7 @@ def train(args):
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     # initialize loss function
     criterion = HingeRankLoss(margin=1.5, similarity_type=args.similarity_type, c_features=args.choice_hidden_size)
-
+    criterion = criterion.to(device)
     
     ### train with existing model
     if args.load_model is not None:
