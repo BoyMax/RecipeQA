@@ -17,6 +17,7 @@ def get_args():
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
+    parser.add_argument("--similarity_type", type=str, default="infersent") # m_features
     parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)
@@ -59,12 +60,13 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
-    model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, args.choice_hidden_size, args.choice_hidden_size)
+    model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
+                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type)
     model = model.to(device)
     # initialize optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     # initialize loss function
-    criterion = HingeRankLoss(margin=1.5)
+    criterion = HingeRankLoss(margin=1.5, similarity_type=args.similarity_type, c_features=args.choice_hidden_size)
 
     
     ### train with existing model

@@ -3,22 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Doc2Vec import load_model
 import numpy as np
+from allennlp.modules.elmo import Elmo, batch_to_ids
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# EmbeddingNet
+# EmbeddingNet-Doc2Vec
 class Doc2Vec(nn.Module):
     def __init__(self):
         super(Doc2Vec, self).__init__()
         self.doc2vec = load_model("doc2vec_text_model")
-
     def forward(self, steps):  #sentences: [['s1w1','s1w2','s1w3'],['s2w1','s2w2']] s:sentence w:word (batch_size, sentence)
         embed_steps = []
         for step in steps:
             embed_step = self.doc2vec.infer_vector(step, alpha=0.025,steps=500)
             embed_steps.append(embed_step)
-        embed_steps = np.array(embed_steps)  #(batch_size, vector_dim) -- (2, 100)
-        return embed_steps #(batch_size, vector_dim)
+        embed_steps = np.array(embed_steps)  #(step_len, vector_dim) -- (2, 100)
+        return embed_steps #(step_len, vector_dim)
 
 # QuestionNet
 class QuestionNet(nn.Module):
@@ -93,7 +93,6 @@ class Attention(nn.Module):
         g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n[-1, :, :]))
         return g #(batch, g_dim) where g_dim = choice_dim
 
-
 class ChoiceNet(nn.Module):
     def __init__(self, hidden_size):
         super(ChoiceNet, self).__init__()
@@ -117,13 +116,16 @@ class ImpatientReaderModel(nn.Module):
     # c_features: choice features
     # m_features is in attention, g features is the output features of attention.
     # c_features should equals to g_feature for comparing the similarity
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100): 
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100, similarity_type = 'cosine'): 
         super(ImpatientReaderModel, self).__init__()
         self.attention = Attention(d_features, q_features, m_features, g_features)
         self.choice = ChoiceNet(c_features) # for embedding
         self.right_answer = QuestionNet(q_features)
         self.wrong_answer = QuestionNet(q_features)
-    
+        if similarity_type == 'cosine':
+            self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
+        elif similarity_type == 'infersent':
+            self.similarity = Infersent(c_features)
     # choices(batch, 4, word_len)
     # replaced_questions(2, batch, 4,word_len), replaced_questions[0,:,:,:] means right answers, replaced_questions[1,:,:,:] means wrong answers.
     def forward(self, texts, questions, choices, replaced_questions):
@@ -139,22 +141,30 @@ class ImpatientReaderModel(nn.Module):
         similarity_scores = []
         for i in range(choice_len):
             choice_outputs= choice_output[:,i,:] #choice_output(batch_size, dim)
-            similarity = F.cosine_similarity(g, choice_outputs) #similarity(batch_size)
+            similarity = self.similarity(g, choice_outputs) #similarity(batch_size)
             similarity_scores.append(similarity) # for accuracy 
-        
         return similarity_scores, g, r_h_n[-1,:,:], w_h_n[-1,:,:]
         # similarity_scores #(choice_len, batch)
 
-
 class HingeRankLoss(nn.Module):
-    def __init__(self, margin):
+    def __init__(self, margin, similarity_type='cosine', c_features=100):
         super().__init__()
         self.margin = margin
-        self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        if similarity_type == 'cosine':
+            self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
+        elif similarity_type == 'infersent':
+            self.similarity = Infersent(c_features)
     def forward(self, g, p, n):
         if torch.cuda.is_available(): 
             batch_zeros = torch.zeros(p.size()[0]).cuda()
         else:
             batch_zeros = torch.zeros(p.size()[0])
-        loss = torch.max(batch_zeros, self.margin-self.cos(g,p)+self.cos(g,n))
+        loss = torch.max(batch_zeros, self.margin - self.similarity(g,p) + self.similarity(g,n))
         return torch.mean(loss)
+
+class Infersent(nn.Module):
+    def __init__(self, c_features):
+        super().__init__()
+        self.linear = nn.Linear(4 * c_features,1)
+    def forward(self, g, c):
+        return self.linear(torch.cat((g, c, torch.abs(g - c), g * c), 1))
