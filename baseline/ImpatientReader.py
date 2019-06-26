@@ -25,10 +25,14 @@ class ELMo(nn.Module):
         options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
         weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
         self.elmo = Elmo(options_file, weight_file, 1, dropout=0.2, requires_grad = False)
+        if torch.cuda.is_available(): 
+             self.elmo = Elmo(options_file, weight_file, 1, dropout=0.2, requires_grad = False).to(torch.device("cuda"))
         self.lstm = nn.LSTM(1024, word_hidden_size, num_layers=1, batch_first=True)
 
     def forward(self, step):  #sentences: [['s1w1','s1w2','s1w3'],['s2w1','s2w2']] s:sentence w:word (batch_size, word_len)
         character_ids = batch_to_ids(step)
+        if torch.cuda.is_available(): 
+            character_ids = character_ids.cuda()
         embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
         output, (h_n, c_n) = self.lstm(embeddings)
         return h_n[-1, :, :] #(batch, hidden_size)
