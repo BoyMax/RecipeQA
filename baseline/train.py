@@ -11,7 +11,7 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=100)
-    parser.add_argument("--num_epochs", type=int, default=2)
+    parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
