@@ -57,7 +57,7 @@ def replace_placeholder_with_choice(question, replaced_choice):
     placeholder = ['placeholder']
     return [replaced_choice if step == placeholder else step for step in question] # build a new list that replace placeholder with choice.
 
-def replace_true_false_answer(question_list, choice_list, answer_list): # question(batch, num_step, str) choice (batch, num_choice, str)  answer(batch, int)
+def batch_replace_answer(question_list, choice_list, answer_list): # question(batch, num_step, str) choice (batch, num_choice, str)  answer(batch, int)
     replaced_questions = []
     right_choices = []
     wrong_choices = []
@@ -87,6 +87,41 @@ def replace_true_false_answer(question_list, choice_list, answer_list): # questi
     replaced_questions.append(wrong_choices)
     return replaced_questions #(2, batch_size, question_len, word_len)
 
+def hierarchy_replace_answer(question_list, choice_list, answer_list): # question(num_step, batch, str) choice (batch, num_choice, str)  answer(batch, int)
+    replaced_questions = []
+    a = [1,2,3]
+    b = [0,2,3] 
+    c = [0,1,3]
+    d = [0,1,2]
+    sample_index = 0
+    right_choices = []
+    wrong_choices = []
+    for step in question_list: 
+        question_right_step = []
+        question_wrong_step = []
+        for batch in range(len(answer_list)):
+            right_answer_index = answer_list[batch]
+            if step[batch]== ['placeholder']:
+                # add right choice in question
+                question_right_step.append(choice_list[right_answer_index][batch])
+                # add wrong choice in question
+                if right_answer_index == 0:
+                    sample_index = choice(a)
+                elif right_answer_index == 1:
+                    sample_index = choice(b)
+                elif right_answer_index == 2:
+                    sample_index = choice(c)
+                elif right_answer_index == 3:
+                    sample_index = choice(d)
+                question_wrong_step.append(choice_list[sample_index][batch])
+            else:
+                question_right_step.append(step[batch])
+                question_wrong_step.append(step[batch])
+        right_choices.append(question_right_step)
+        wrong_choices.append(question_wrong_step)
+    replaced_questions.append(right_choices)
+    replaced_questions.append(wrong_choices)
+    return replaced_questions #(2, question_len, batch_size, word_len)
 
 def collate_batch_wrapper(batch):
     transposed_data = list(zip(*batch))
@@ -128,9 +163,23 @@ def collate_batch_hingeRank_wrapper(batch):
     question = padding_steps(question, "batch_first")
     # get the right and wrong answer for hinge rank loss.
     choice_list = list(transposed_data[3])
-    replaced_choice = replace_true_false_answer(question, choice_list, answer)
+    replaced_choice = batch_replace_answer(question, choice_list, answer) #question and choice shape must be (batch, step_len, word_len)
     return text, image, question, choice_list, answer, replaced_choice
 
+def collate_hierarchy_hingeRank_wrapper(batch):
+    transposed_data = list(zip(*batch))
+    text = list(transposed_data[0])
+    image = list(transposed_data[1])
+    question = list(transposed_data[2])
+    answer = list(transposed_data[4])
+    # padding steps for text and question
+    text = padding_steps(text, "step_first")
+    question = padding_steps(question, "step_first")
+    # get the right and wrong answer for hinge rank loss.
+    choice_list = list(transposed_data[3])
+    choice_list = padding_steps(choice_list, "step_first")
+    replaced_choice = hierarchy_replace_answer(question, choice_list, answer) #question and choice shape must be (step_len, batch, word_len)
+    return text, image, question, choice_list, answer, replaced_choice
 
 '''
 ## example of using customized dataloader.

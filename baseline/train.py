@@ -1,6 +1,6 @@
 import argparse
 from tqdm import tqdm
-from utils import recipeDataset, collate_batch_hingeRank_wrapper
+from utils import *
 from ImpatientReader import ImpatientReaderModel, HingeRankLoss
 import torch
 import torch.nn as nn
@@ -11,13 +11,16 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=100)
-    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--num_epochs", type=int, default=2)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
-    parser.add_argument("--similarity_type", type=str, default="infersent") # m_features
+    parser.add_argument("--similarity_type", type=str, default="cosine") 
+    parser.add_argument("--embedding_type", type=str, default="ELMo") 
+    parser.add_argument("--embed_hidden_size", type=int, default=100)
+    parser.add_argument("--loss", type=str, default="hinge_rank") 
     parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)
@@ -41,7 +44,7 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
             'val_loss': val_loss,
             'accuracy': accuracy,
             },
-               '%s/IR_hingerank_epoch_%d_acc_%f.pth' % (saved_path, epoch,accuracy))
+               '%s/IR_hingeRank_emlo_epoch_%d_acc_%f.pth' % (saved_path, epoch,accuracy))
     print('Save model with accuracy:',accuracy)
 
 def log_data(log_path,train_loss,train_accuracy,val_loss,val_accuracy):
@@ -61,12 +64,16 @@ def train(args):
     #### Initialization
     # initialize model
     model = ImpatientReaderModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
-                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type)
+                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type,
+                                args.embedding_type, args.embed_hidden_size)
     model = model.to(device)
     # initialize optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     # initialize loss function
-    criterion = HingeRankLoss(margin=1.5, similarity_type=args.similarity_type, c_features=args.choice_hidden_size)
+    if args.loss == "hinge_rank":
+        criterion = HingeRankLoss(margin=1.5, similarity_type=args.similarity_type, c_features=args.choice_hidden_size)
+    elif args.loss == "cross_entropy":
+        criterion = nn.CrossEntropyLoss()
     criterion = criterion.to(device)
     
     ### train with existing model
@@ -83,26 +90,32 @@ def train(args):
         ### training
         #1. get training data
         train_dataset = recipeDataset(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')
-        train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
+        if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
+            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
+        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
+            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn= collate_batch_hingeRank_wrapper)
+        elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
+            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
+
         #2. training all batches
         model.train()
         running_loss = 0
         running_acc = 0
         for batch_index, (text, image, question, choice, answer, replaced_choice) in tqdm(enumerate(train_loader)):
+            answer = torch.LongTensor(answer).to(device)
             # zero the parameter gradients
             optimizer.zero_grad()
             # forward + backward + optimize
-            outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
-            outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-            loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+            if args.loss == "hinge_rank":
+                outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+                loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+            elif args.loss == "cross_entropy":
+                loss = criterion(outputs, answer)
             loss.backward()
             optimizer.step()
             # statistics
             running_loss += loss.item() 
-            if torch.cuda.is_available():
-                answer = torch.LongTensor(answer).cuda()
-            else: 
-                answer = torch.LongTensor(answer)
             running_acc += accuracy(outputs, answer)
         epoch_train_loss = running_loss/len(train_loader)
         epoch_train_acc = running_acc/len(train_loader)
@@ -110,23 +123,29 @@ def train(args):
         ### validating:
         #1. get validation data
         val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
-        val_loader = Data.DataLoader(val_dataset, batch_size=10, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
+        if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
+            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
+        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
+            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
+        elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
+            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
+
         #2. validation all batches
         model.eval()
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
             for batch_index, (text, image, question, choice, answer, replaced_choice) in enumerate(val_loader):
+                answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
-                outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+                if args.loss == "hinge_rank":
+                    outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                    outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+                    validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
+                elif args.loss == "cross_entropy":
+                    validation_loss = criterion(outputs, answer)
                 # statistics
                 val_loss += validation_loss.item() 
-                if torch.cuda.is_available():
-                    answer = torch.LongTensor(answer).cuda()
-                else: 
-                    answer = torch.LongTensor(answer)
                 val_acc += accuracy(outputs, answer)
         epoch_val_loss = val_loss/len(val_loader)
         epoch_val_acc = val_acc/len(val_loader)

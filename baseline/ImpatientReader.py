@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Doc2Vec import load_model
 import numpy as np
-#from allennlp.modules.elmo import Elmo, batch_to_ids
+from allennlp.modules.elmo import Elmo, batch_to_ids
 
 # EmbeddingNet-Doc2Vec
 class Doc2Vec(nn.Module):
@@ -18,29 +18,47 @@ class Doc2Vec(nn.Module):
         embed_steps = np.array(embed_steps)  #(step_len, vector_dim) -- (2, 100)
         return embed_steps #(step_len, vector_dim)
 
-# QuestionNet
-class QuestionNet(nn.Module):
-    def __init__(self, hidden_size):
-        super(QuestionNet, self).__init__()
-        self.embedding = Doc2Vec()
-        self.lstm = nn.LSTM(input_size=100, hidden_size=hidden_size, num_layers=3, batch_first=True)
-    def forward(self, questions): #questions (batch_size, step_len, word_len)
+# EmbeddingNet-ELMo
+class ELMo(nn.Module):
+    def __init__(self, word_hidden_size=100):
+        super(ELMo, self).__init__()
+        options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
+        weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
+        self.elmo = Elmo(options_file, weight_file, 1, dropout=0.2, requires_grad = False)
+        self.lstm = nn.LSTM(1024, word_hidden_size, num_layers=1, batch_first=True)
+
+    def forward(self, step):  #sentences: [['s1w1','s1w2','s1w3'],['s2w1','s2w2']] s:sentence w:word (batch_size, word_len)
+        character_ids = batch_to_ids(step)
+        embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
+        output, (h_n, c_n) = self.lstm(embeddings)
+        return h_n[-1, :, :] #(batch, hidden_size)
+
+class Hierarchy_Elmo_Net(nn.Module):
+    def __init__(self, hidden_size=256, word_hidden_size=100):
+        super(Hierarchy_Elmo_Net, self).__init__()
+        self.embedding = ELMo(word_hidden_size)
+        self.lstm = nn.LSTM(input_size=word_hidden_size, hidden_size=hidden_size, num_layers=3, dropout=0.2)
+    def forward(self, texts): #texts (step_len, batch_size, word_len)
         batch = []
-        for question in questions:
-            embed_question = self.embedding(question) # shape of embed_question: (step_len, vector_dim)
-            batch.append(embed_question)
-        # shape of batch(batch_size, step_len, vector_dim)
+        for text in texts:
+            embed_text = self.embedding(text) # shape of embed_text: (batch_size, word_hidden_size)
+            if torch.cuda.is_available():
+                batch.append(embed_text.cpu().detach().numpy())
+            else:
+                batch.append(embed_text.detach().numpy())
+        # shape of batch: (step_len, batch_size, vector_dim)    
         if torch.cuda.is_available(): 
             batch = torch.Tensor(batch).cuda()
         else:
             batch = torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
         output,(h_n, c_n) = self.lstm(batch) 
-        #output: (batch, step_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
+        output = output.permute(1,0,2)
+        #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
         return output, h_n
 
-class TextNet(nn.Module):
+class Hierarchy_Doc2Vec_Net(nn.Module):
     def __init__(self, hidden_size=512):
-        super(TextNet, self).__init__()
+        super(Hierarchy_Doc2Vec_Net, self).__init__()
         self.embedding = Doc2Vec()
         self.lstm = nn.LSTM(input_size=100, hidden_size=hidden_size, num_layers=3, batch_first=True)
     def forward(self, texts): #texts (batch_size, step_len, word_len)
@@ -58,10 +76,14 @@ class TextNet(nn.Module):
         return output, h_n
 
 class Attention(nn.Module):
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100):
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='Doc2Vec', embed_hidden_size=100):
         super(Attention, self).__init__()
-        self.questionNet = QuestionNet(q_features)
-        self.textNet = TextNet(d_features)
+        if embedding_type == 'Doc2Vec':
+            self.questionNet = Hierarchy_Doc2Vec_Net(q_features)
+            self.textNet = Hierarchy_Doc2Vec_Net(d_features)
+        elif embedding_type == 'ELMo':
+            self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
+            self.textNet = Hierarchy_Elmo_Net(d_features, embed_hidden_size)
         self.r_dim = d_features # num_direction * d_features (unidirectional: num_direction=1)
         self.d_m = nn.Linear(in_features=d_features, out_features=m_features, bias=False)
         self.r_m = nn.Linear(in_features=self.r_dim, out_features=m_features, bias=False)
@@ -91,11 +113,10 @@ class Attention(nn.Module):
         g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n[-1, :, :]))
         return g #(batch, g_dim) where g_dim = choice_dim
 
-class ChoiceNet(nn.Module):
-    def __init__(self, hidden_size):
-        super(ChoiceNet, self).__init__()
+class Choice_Doc2Vec_Net(nn.Module):
+    def __init__(self):
+        super(Choice_Doc2Vec_Net, self).__init__()
         self.embedding = Doc2Vec()
-        #self.lstm = nn.LSTM(input_size=100, hidden_size=hidden_size, num_layers=3, batch_first=True)
     def forward(self, choices): #texts (batch_size, step_len, word_len)
         batch = []
         for choice in choices:
@@ -108,18 +129,43 @@ class ChoiceNet(nn.Module):
             batch = torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
         return batch
 
+class Choice_ELMo_Net(nn.Module):
+    def __init__(self, word_hidden_size):
+        super(Choice_ELMo_Net, self).__init__()
+        self.embedding = ELMo(word_hidden_size)
+    def forward(self, choices): #choice (step_len, batch_size, word_len)
+        embed_choices = []
+        for choice in choices:
+            embed_choice = self.embedding(choice) # shape of embed_text: (batch_size, word_len)
+            if torch.cuda.is_available():
+                embed_choices.append(embed_choice.cpu().detach().numpy())
+            else:
+                embed_choices.append(embed_choice.detach().numpy())
+        # shape of batch: (step_len, batch_size, vector_dim)
+        if torch.cuda.is_available(): 
+            embed_choices = torch.Tensor(embed_choices).cuda()
+        else:
+            embed_choices = torch.Tensor(embed_choices) # torch.Tensor(batch): covert list to tensor
+        return embed_choices.permute(1, 0, 2) # return shape(batch, step_len, vec_dim) consistent with the Doc2Vec
+
 class ImpatientReaderModel(nn.Module):
     # d_features: document features
     # q_features: question features
     # c_features: choice features
     # m_features is in attention, g features is the output features of attention.
     # c_features should equals to g_feature for comparing the similarity
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100, similarity_type = 'cosine'): 
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, c_features=100, 
+                similarity_type = 'cosine', embedding_type='Doc2Vec', embed_hidden_size=100): 
         super(ImpatientReaderModel, self).__init__()
-        self.attention = Attention(d_features, q_features, m_features, g_features)
-        self.choice = ChoiceNet(c_features) # for embedding
-        self.right_answer = QuestionNet(q_features)
-        self.wrong_answer = QuestionNet(q_features)
+        self.attention = Attention(d_features, q_features, m_features, g_features, embedding_type, embed_hidden_size)
+        if embedding_type == 'Doc2Vec':
+            self.choice = Choice_Doc2Vec_Net() # for embedding
+            self.right_answer = Hierarchy_Doc2Vec_Net(q_features)
+            self.wrong_answer = Hierarchy_Doc2Vec_Net(q_features)
+        elif embedding_type == 'ELMo':
+            self.choice = Choice_ELMo_Net(c_features)
+            self.right_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
+            self.wrong_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         elif similarity_type == 'infersent':
@@ -129,7 +175,7 @@ class ImpatientReaderModel(nn.Module):
     def forward(self, texts, questions, choices, replaced_questions):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
         g = self.attention(texts, questions) 
-        # output(batch_size, c_dim) where g_dim = c_dim = embedding_dim
+        # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_output = self.choice(choices)
         # r_h_n (num_layers * num_directions, batch, hidden_size)
         r_o, r_h_n = self.right_answer(replaced_questions[0])
