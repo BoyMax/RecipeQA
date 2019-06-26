@@ -37,7 +37,7 @@ class Hierarchy_Elmo_Net(nn.Module):
     def __init__(self, hidden_size=256, word_hidden_size=100):
         super(Hierarchy_Elmo_Net, self).__init__()
         self.embedding = ELMo(word_hidden_size)
-        self.lstm = nn.LSTM(input_size=word_hidden_size, hidden_size=hidden_size, num_layers=3, dropout=0.2)
+        self.lstm = nn.LSTM(input_size=word_hidden_size, hidden_size=hidden_size, num_layers=1)
     def forward(self, texts): #texts (step_len, batch_size, word_len)
         batch = []
         for text in texts:
