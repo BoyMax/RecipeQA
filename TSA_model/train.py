@@ -44,7 +44,7 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
             'val_loss': val_loss,
             'accuracy': accuracy,
             },
-               '%s/IR_hingeRank_emlo_epoch_%d_acc_%f.pth' % (saved_path, epoch,accuracy))
+               '%s/TSA_epoch_%d_acc_%f.pth' % (saved_path, epoch,accuracy))
     print('Save model with accuracy:',accuracy)
 
 def log_data(log_path,train_loss,train_accuracy,val_loss,val_accuracy):
