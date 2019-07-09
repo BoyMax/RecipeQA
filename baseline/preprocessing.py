@@ -1,4 +1,5 @@
 import json
+import pandas as pd
 import nltk
 #nltk.download('stopwords')
 #nltk.download('wordnet')
@@ -6,6 +7,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords 
 from nltk.stem import SnowballStemmer
 from nltk.stem import WordNetLemmatizer 
+
 
 ## functions:
 # 1. collect textual_cloze data from raw data
@@ -73,8 +75,36 @@ def clean_string(string):
     return cleaned_str
 
 
-# 3. load the raw data, preprocess, output the cleaned data
-def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', structure='entirety'):
+# 3. process pretrained image features
+# 3.1 get image feature by load the feature file(json)
+def read_imgs_file(imageFeatureFile='../data/training_features_resnet50.json'):
+    
+    # work with huge file
+    df = pd.read_json(imageFeatureFile, lines=True, chunksize=1e5)
+    features1 = pd.DataFrame() # Initialize the dataframe
+    try:
+        for df_chunk in df:
+            features1 = pd.concat([features1, df_chunk])
+    except ValueError:
+        print ('\nSome messages in the file cannot be parsed')
+    
+    '''
+    # only work with small file
+    with open(imageFeatureFile, 'r') as f:
+        features2 = json.load(f)
+    import pdb; pdb.set_trace()
+    assert(features1 == features2)
+    '''
+    return features1
+# 3.2 get image feature by given a list of images' name, add features(dict)
+def extract_img_feature(img_names, img_features):
+    step_imgs = []
+    for img_name in img_names:
+        step_imgs.append(img_features[img_name][0][0])
+    return step_imgs
+
+# 4.load the raw data, preprocess, output the cleaned data
+def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', structure='hierarchy', imageFeatureFile='./data/training_features_resnet50.json'):
     try: # if we alread have the cleaned file
         # load cleaned data
         f = open(cleanFile, 'r', encoding='utf8')
@@ -89,6 +119,7 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
         return recipe_text, recipe_image, recipe_question, recipe_choice, recipe_answer
     except IOError: #File is not accessible, create a clean file
         textual_cloze_data = extract_textual_cloze_data(rawFile, task)
+        img_features = read_imgs_file(imageFeatureFile)
         data = textual_cloze_data['data']
         question_list = []
         choice_list = []
@@ -100,10 +131,12 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                 text_entire = ''
                 question_entire = ''
                 choices = []
-                images = []
+                images = [] # add image data here
                 for step in recipe['context']:
                     text_entire = text_entire  + ' ' + step['body']
-                    images.append(step['images'])
+                    step_img_list = step['images']
+                    step_imgs = extract_img_feature(step_img_list, img_features)
+                    images.append(step_imgs)
                 for step_str in recipe['question']:
                     question_entire = question_entire + ' ' + step_str
                 for choice in recipe['choice_list']:
@@ -121,7 +154,9 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                 images = []
                 for step in recipe['context']:
                     texts.append(clean_string(step['body']))
-                    images.append(step['images'])
+                    step_img_list = step['images']
+                    step_imgs = extract_img_feature(step_img_list, img_features)
+                    images.append(step_imgs)
                 for step in recipe['question']:
                     questions.append(clean_string(step))
                 for choice in recipe['choice_list']:
@@ -141,10 +176,8 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
             json.dump(recipes, f, indent=4, ensure_ascii=False) # convert dict to str and write, indent means change row
         return text_list, image_list, question_list, choice_list, answer_list
 
-
-
 if __name__ == "__main__":
     #preprocess(cleanFile='./data/entirety/train_cleaned.json', rawFile='./data/train.json', task='textual_cloze', structure='entirety')
     #preprocess(cleanFile='./data/entirety/val_cleaned.json', rawFile='./data/val.json', task='textual_cloze', structure='entirety')
-    preprocess(cleanFile='./data/hierarchy/train_cleaned.json', rawFile='./data/train.json', task='textual_cloze', structure='hierarchy')
-    preprocess(cleanFile='./data/hierarchy/val_cleaned.json', rawFile='./data/val.json', task='textual_cloze', structure='hierarchy')
+    preprocess(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy', imageFeatureFile='../data/training_features_resnet50.json')
+    #preprocess(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy',  imageFeatureFile='../data/validation_features_resnet50.json')
