@@ -100,6 +100,10 @@ def train(args):
         elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
             train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
 
+        f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
+        img_features = json.loads(f)
+        f.close()
+
         #2. training all batches
         model.train()
         running_loss = 0
@@ -107,7 +111,7 @@ def train(args):
         for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(train_loader)):
             # extract image feature for batch image names
             # image (batch, image_len)
-            image_feature = extract_image_feature(image)
+            image_feature = extract_image_feature(image, img_features)
             
             answer = torch.LongTensor(answer).to(device)
             # zero the parameter gradients
@@ -141,13 +145,17 @@ def train(args):
         elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
             val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
 
+        f = open('../data/validation_features_resnet50.json', 'r', encoding='utf8').read()
+        img_features = json.loads(f)
+        f.close()
+
         #2. validation all batches
         model.eval()
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
             for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
-                image_feature = extract_image_feature(image)
+                image_feature = extract_image_feature(image, img_features)
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
                 if args.loss == "hinge_rank":

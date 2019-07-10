@@ -203,13 +203,11 @@ def collate_hierarchy_hingeRank_wrapper(batch):
     return text, image, question, choice_list, answer, replaced_choice
 
 
-def extract_image_feature(image, feature_path='../data/training_features_resnet50.json'):
+def extract_image_feature(image, features):
     '''
     df = pd.read_json(feature_path, lines=True, chunksize=1e5)
     features = pd.DataFrame() # Initialize the dataframe
     '''
-    f = open(feature_path, 'r', encoding='utf8').read()
-    features = json.loads(f)
     image_features = []
     try:
         '''
