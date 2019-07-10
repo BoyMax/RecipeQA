@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
@@ -104,6 +104,11 @@ def train(args):
         running_loss = 0
         running_acc = 0
         for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(train_loader)):
+            # extract image feature for batch image names
+            # image (batch, image_len)
+            image_feature = extract_image_feature(image)
+            import pdb; pdb.set_trace()
+            
             answer = torch.LongTensor(answer).to(device)
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -141,7 +146,7 @@ def train(args):
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
-            for batch_index, (text, image, question, choice, answer, replaced_choice) in enumerate(val_loader):
+            for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
                 if args.loss == "hinge_rank":

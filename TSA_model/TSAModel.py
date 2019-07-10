@@ -139,8 +139,6 @@ class Infersent(nn.Module):
         infersent_similarity = torch.cat((g, c, torch.abs(g - c), g * c), 1)
         return self.linear(infersent_similarity)
 
-
-
 class Attention(nn.Module):
     def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='Doc2Vec', embed_hidden_size=100):
         super(Attention, self).__init__()
@@ -179,7 +177,6 @@ class Attention(nn.Module):
         g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n[-1, :, :]))
         return g #(batch, g_dim) where g_dim = choice_dim
 
-
 class SpatialAttention(nn.Module):
     def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='ELMo', embed_hidden_size=256):
         super(SpatialAttention, self).__init__()
@@ -209,6 +206,22 @@ class SpatialAttention(nn.Module):
         #r:(batch, num_directions * hidden_size)
         g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n[-1, :, :])) #question_h_n: (num_layers * num_directions, batch, hidden_size)
         return g #(batch, g_dim) where g_dim = choice_dim #means the embedding between text and question
+
+class TemporalAttention(nn.Module):
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='ELMo', img_hidden_size=2048):
+        super(TemporalAttention, self).__init__()
+        self.imageNet = nn.LSTM(input_size=1000, hidden_size=img_hidden_size, num_layers=1)
+        self.r_dim = d_features # num_direction * d_features (unidirectional: num_direction=1)
+        self.d_m = nn.Linear(in_features=d_features, out_features=m_features, bias=False)
+        self.q_m = nn.Linear(in_features=q_features, out_features=m_features, bias=False)
+        self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
+        self.r_g = nn.Linear(in_features=self.r_dim, out_features=g_features, bias=False)
+        self.q_g = nn.Linear(in_features=q_features, out_features=g_features, bias=False)
+    def forward(self, images, questions):
+        #images:(batch, img_len) images only contains the name of image
+        return
+
+
 
 class TSAModel(nn.Module):
     # d_features: document features

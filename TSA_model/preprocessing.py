@@ -23,7 +23,6 @@ def extract_textual_cloze_data(rawFile='./data/train.json', task='textual_cloze'
     new_data['data'] = recipes 
     return new_data
 
-
 # 2. clean the data: 
 # 2.1 remove special symbol
 def remove_special_symbol(text):
@@ -78,7 +77,6 @@ def clean_string(string):
 # 3. process pretrained image features
 # 3.1 get image feature by load the feature file(json)
 def read_imgs_file(imageFeatureFile='../data/training_features_resnet50.json'):
-    
     # work with huge file
     df = pd.read_json(imageFeatureFile, lines=True, chunksize=1e5)
     features1 = pd.DataFrame() # Initialize the dataframe
@@ -92,7 +90,6 @@ def read_imgs_file(imageFeatureFile='../data/training_features_resnet50.json'):
     # only work with small file
     with open(imageFeatureFile, 'r') as f:
         features2 = json.load(f)
-    import pdb; pdb.set_trace()
     assert(features1 == features2)
     '''
     return features1
@@ -155,7 +152,8 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                     texts.append(clean_string(step['body']))
                     step_imgs = step['images']
                     #step_imgs = extract_img_feature(step_img_list, img_features)
-                    images.append(step_imgs)
+                    for img in step_imgs:
+                        images.append(img)
                 for step in recipe['question']:
                     questions.append(clean_string(step))
                 for choice in recipe['choice_list']:

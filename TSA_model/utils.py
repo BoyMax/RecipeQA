@@ -53,6 +53,23 @@ def padding_steps(content, type):  #type could be batch_first, or step_first(for
         content = transposed_recipes
     return content
 
+# padding imgs to make all the recipes have the same number of images
+def padding_imgs(content):  #type could be batch_first, or step_first(for hierarchy structure)
+    # padding 
+    # 1.find the max step
+    max_pictures = len(content[0])
+    for sample in content:
+        if len(sample)>max_pictures:
+            max_pictures = len(sample)
+    
+    # batch_first : padding to get the same steps [recipes[imgs]]
+    for sample in content:
+        if len(sample)<max_pictures:
+            void_step = max_pictures - len(sample)
+            for i in range(void_step):
+                sample.append('0')
+    return content
+
 def replace_placeholder_with_choice(question, replaced_choice):
     placeholder = ['placeholder']
     return [replaced_choice if step == placeholder else step for step in question] # build a new list that replace placeholder with choice.
@@ -151,6 +168,7 @@ def collate_hierarchy_wrapper(batch):
     text = padding_steps(text, "step_first")
     question = padding_steps(question, "step_first")
     choice = padding_steps(choice, "step_first")
+    image = padding_imgs(image)
     return text, image, question, choice, answer
 
 def collate_batch_hingeRank_wrapper(batch):
@@ -182,17 +200,37 @@ def collate_hierarchy_hingeRank_wrapper(batch):
     replaced_choice = hierarchy_replace_answer(question, choice_list, answer) #question and choice shape must be (step_len, batch, word_len)
     return text, image, question, choice_list, answer, replaced_choice
 
+
+def extract_image_feature(image, feature_path='../data/training_features_resnet50.json'):
+    df = pd.read_json(feature_path, lines=True, chunksize=1e5)
+    features = pd.DataFrame() # Initialize the dataframe
+    image_features = []
+    try:
+        for df_chunk in df:
+            features = pd.concat([features, df_chunk])
+        for recipe_imgs in image:
+            imgs_feature = []
+            for img in recipe_imgs:
+                if img == '0':
+                    imgs_feature.append(np.zeros(1000).tolist())
+                else:
+                    imgs_feature.append(features[img][0][0])
+            image_features.append(imgs_feature)
+        return image_features
+    except ValueError:
+        print ('\nSome messages in the file cannot be parsed')
+
 '''
 ## example of using customized dataloader.
 
 train_dataset = recipeDataset(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')
-loader = Data.DataLoader(train_dataset, batch_size=2, shuffle=False, collate_fn=collate_batch_hingeRank_wrapper)
+loader = Data.DataLoader(train_dataset, batch_size=2, shuffle=False, collate_fn=collate_hierarchy_wrapper)
 
 for epoch in range(1):
-    for recipe_index, (text, image, question, choice, answer, replaced_choice) in enumerate(loader):
+    for recipe_index, (text, image, question, choice, answer) in enumerate(loader):
         if epoch == 0 and recipe_index == 0:
             print('\"question\": ',question)
-            print('\"choice\": ',choice) 
-            print('\"replaced_choice\": ', replaced_choice)
+            print('\"image\": ',image) 
+            #print('\"replaced_choice\": ', replaced_choice)
             break
 '''
