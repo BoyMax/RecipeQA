@@ -11,8 +11,8 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--num_epochs", type=int, default=1)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--num_epochs", type=int, default=5)
+    parser.add_argument("--learning_rate", type=float, default=0.002)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--img_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
@@ -58,7 +58,7 @@ def log_data(log_path,train_loss,train_accuracy,val_loss,val_accuracy):
                 +' '+str(val_loss)+' '+str(f'{val_accuracy:.2f}')
     file.write(data)
     file.write('\n')
-    file.close() 
+    file.close()
 
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
