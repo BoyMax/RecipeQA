@@ -65,28 +65,11 @@ def padding_imgs(content):
             max_pictures = len(sample)
     
     # batch_first : padding to get the same steps [recipes[imgs]]
-    new_content = []
-    for sample in content:
-        new_sample = []
-        for i in range(max_pictures):
-            if len(sample) < max_pictures:
-                new_sample.append('0')
-            elif len(sample[i]) == 0:
-                new_sample.append('0')
-            elif len(sample[i]) > 0:
-                for img in sample[i]:
-                    new_sample.append(img)
-        new_content.append(new_sample)
-    content = new_content
-
-    '''
-    # for pandas.read_json()
     for sample in content:
         if len(sample)<max_pictures:
             void_step = max_pictures - len(sample)
             for i in range(void_step):
                 sample.append('0')
-    '''
     return content
 
 def replace_placeholder_with_choice(question, replaced_choice):
