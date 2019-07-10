@@ -204,19 +204,28 @@ def collate_hierarchy_hingeRank_wrapper(batch):
 
 
 def extract_image_feature(image, feature_path='../data/training_features_resnet50.json'):
+    '''
     df = pd.read_json(feature_path, lines=True, chunksize=1e5)
     features = pd.DataFrame() # Initialize the dataframe
+    '''
+    f = open(feature_path, 'r', encoding='utf8').read()
+    features = json.loads(f)
     image_features = []
     try:
+        '''
         for df_chunk in df:
             features = pd.concat([features, df_chunk])
+        '''
         for recipe_imgs in image:
             imgs_feature = []
             for img in recipe_imgs:
                 if img == '0':
                     imgs_feature.append(np.zeros(1000).tolist())
                 else:
+                    '''
                     imgs_feature.append(features[img][0][0])
+                    '''
+                    imgs_feature.append(features[img][0])
             image_features.append(imgs_feature)
         if torch.cuda.is_available():
             image_features = torch.FloatTensor(image_features).cuda()
