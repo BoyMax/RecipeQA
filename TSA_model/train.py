@@ -102,7 +102,6 @@ def train(args):
 
         f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
         img_features = json.loads(f)
-        f.close()
 
         #2. training all batches
         model.train()
@@ -147,8 +146,7 @@ def train(args):
 
         f = open('../data/validation_features_resnet50.json', 'r', encoding='utf8').read()
         img_features = json.loads(f)
-        f.close()
-
+        
         #2. validation all batches
         model.eval()
         val_loss = 0
