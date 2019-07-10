@@ -56,7 +56,7 @@ def padding_steps(content, type):  #type could be batch_first, or step_first(for
     return content
 
 # padding imgs to make all the recipes have the same number of images
-def padding_imgs(content):  #type could be batch_first, or step_first(for hierarchy structure)
+def padding_imgs(content): 
     # padding 
     # 1.find the max step
     max_pictures = len(content[0])
@@ -65,11 +65,28 @@ def padding_imgs(content):  #type could be batch_first, or step_first(for hierar
             max_pictures = len(sample)
     
     # batch_first : padding to get the same steps [recipes[imgs]]
+    new_content = []
+    for sample in content:
+        new_sample = []
+        for i in range(max_pictures):
+            if len(sample) < max_pictures:
+                new_sample.append('0')
+            elif len(sample[i]) == 0:
+                new_sample.append('0')
+            elif len(sample[i]) > 0:
+                for img in sample[i]:
+                    new_sample.append(img)
+        new_content.append(new_sample)
+    content = new_content
+
+    '''
+    # for pandas.read_json()
     for sample in content:
         if len(sample)<max_pictures:
             void_step = max_pictures - len(sample)
             for i in range(void_step):
                 sample.append('0')
+    '''
     return content
 
 def replace_placeholder_with_choice(question, replaced_choice):
