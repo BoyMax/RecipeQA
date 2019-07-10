@@ -14,6 +14,7 @@ def get_args():
     parser.add_argument("--num_epochs", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
+    parser.add_argument("--img_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
@@ -63,7 +64,7 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
-    model = TSAModel(args.doc_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
+    model = TSAModel(args.doc_hidden_size, args.img_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
                                 args.choice_hidden_size, args.choice_hidden_size, args.similarity_type,
                                 args.embedding_type, args.embed_hidden_size)
     model = model.to(device)
@@ -107,7 +108,6 @@ def train(args):
             # extract image feature for batch image names
             # image (batch, image_len)
             image_feature = extract_image_feature(image)
-            import pdb; pdb.set_trace()
             
             answer = torch.LongTensor(answer).to(device)
             # zero the parameter gradients
@@ -118,7 +118,7 @@ def train(args):
                 outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                 loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
             elif args.loss == "cross_entropy":
-                outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
                 outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                 loss = criterion(outputs, answer)
             loss.backward()
@@ -147,6 +147,7 @@ def train(args):
         val_acc = 0
         with torch.no_grad():
             for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
+                image_feature = extract_image_feature(image)
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
                 if args.loss == "hinge_rank":
@@ -154,7 +155,7 @@ def train(args):
                     outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                     validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
                 elif args.loss == "cross_entropy":
-                    outputs = model(text, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                    outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
                     outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                     validation_loss = criterion(outputs, answer)
                 # statistics

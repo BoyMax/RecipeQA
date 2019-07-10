@@ -3,6 +3,8 @@ import torch.utils.data as Data
 import pdb
 import torch
 from random import choice
+import pandas as pd
+import numpy as np
 
 class recipeDataset(Data.Dataset):
     def __init__(self, cleanFile,rawFile, task, structure):
@@ -216,6 +218,10 @@ def extract_image_feature(image, feature_path='../data/training_features_resnet5
                 else:
                     imgs_feature.append(features[img][0][0])
             image_features.append(imgs_feature)
+        if torch.cuda.is_available():
+            image_features = torch.FloatTensor(image_features).cuda()
+        else:
+            image_features = torch.FloatTensor(image_features)
         return image_features
     except ValueError:
         print ('\nSome messages in the file cannot be parsed')
