@@ -1,7 +1,7 @@
 import argparse
 from tqdm import tqdm
 from utils import *
-from TSAModel import TSAModel, HingeRankLoss
+from TSAModel import TSAModel
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,9 +19,7 @@ def get_args():
     parser.add_argument("--choice_hidden_size", type=int, default=256) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
     parser.add_argument("--similarity_type", type=str, default="infersent") 
-    parser.add_argument("--embedding_type", type=str, default="ELMo") 
     parser.add_argument("--embed_hidden_size", type=int, default=100)
-    parser.add_argument("--loss", type=str, default="cross_entropy") 
     parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)
@@ -65,16 +63,12 @@ def train(args):
     #### Initialization
     # initialize model
     model = TSAModel(args.doc_hidden_size, args.img_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
-                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type,
-                                args.embedding_type, args.embed_hidden_size)
+                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type,args.embed_hidden_size)
     model = model.to(device)
     # initialize optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     # initialize loss function
-    if args.loss == "hinge_rank":
-        criterion = HingeRankLoss(margin=1.5, similarity_type=args.similarity_type, c_features=args.choice_hidden_size)
-    elif args.loss == "cross_entropy":
-        criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
     criterion = criterion.to(device)
     
     ### train with existing model
@@ -91,30 +85,22 @@ def train(args):
         ### training
         #1. get training data
         train_dataset = recipeDataset(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')
-        if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
-            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
-        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
-            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn= collate_batch_hingeRank_wrapper)
-        elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
-            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
-        elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
-            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
+        train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
 
         '''
-        # use open file for gcp
-        f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
-        img_features = json.loads(f)
-        '''
-
-        '''
-        # use pandas.read_json for local machine
-        df = pd.read_json('../data/training_features_resnet50.json', lines=True, chunksize=1e5)
-        img_features = pd.DataFrame() # Initialize the dataframe
-        try:
-            for df_chunk in df:
-                img_features = pd.concat([img_features, df_chunk])
-        except ValueError:
-            print ('\nSome messages in the file cannot be parsed')
+        if torch.cuda.is_available():
+            # use open file for gcp
+            f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
+            img_features = json.loads(f)
+        else:
+            # use pandas.read_json for local machine
+            df = pd.read_json('../data/training_features_resnet50.json', lines=True, chunksize=1e5)
+            img_features = pd.DataFrame() # Initialize the dataframe
+            try:
+                for df_chunk in df:
+                    img_features = pd.concat([img_features, df_chunk])
+            except ValueError:
+                print ('\nSome messages in the file cannot be parsed')
         '''
 
         #2. training all batches
@@ -131,14 +117,9 @@ def train(args):
             # zero the parameter gradients
             optimizer.zero_grad()
             # forward + backward + optimize
-            if args.loss == "hinge_rank":
-                outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
-            elif args.loss == "cross_entropy":
-                outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                loss = criterion(outputs, answer)
+            outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+            outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+            loss = criterion(outputs, answer)
             loss.backward()
             optimizer.step()
             # statistics
@@ -150,30 +131,22 @@ def train(args):
         ### validating:
         #1. get validation data
         val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
-        if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
-            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
-        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
-            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
-        elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
-            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
-        elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
-            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
-
+        val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
+        
         '''
-        # use open file for gcp
-        f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
-        img_features = json.loads(f)
-        '''
-
-        '''
-        # use pandas.read_json for local machine
-        df = pd.read_json('../data/validation_features_resnet50.json', lines=True, chunksize=1e5)
-        img_features = pd.DataFrame() # Initialize the dataframe
-        try:
-            for df_chunk in df:
-                img_features = pd.concat([img_features, df_chunk])
-        except ValueError:
-            print ('\nSome messages in the file cannot be parsed')
+        if torch.cuda.is_available():
+            # use open file for gcp
+            f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
+            img_features = json.loads(f)
+        else:
+            # use pandas.read_json for local machine
+            df = pd.read_json('../data/validation_features_resnet50.json', lines=True, chunksize=1e5)
+            img_features = pd.DataFrame() # Initialize the dataframe
+            try:
+                for df_chunk in df:
+                    img_features = pd.concat([img_features, df_chunk])
+            except ValueError:
+                print ('\nSome messages in the file cannot be parsed')
         '''
 
         #2. validation all batches
@@ -187,14 +160,9 @@ def train(args):
 
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
-                if args.loss == "hinge_rank":
-                    outputs, g, r, w = model(text, question, choice, replaced_choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                    outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                    validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
-                elif args.loss == "cross_entropy":
-                    outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
-                    outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-                    validation_loss = criterion(outputs, answer)
+                outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
+                validation_loss = criterion(outputs, answer)
                 # statistics
                 val_loss += validation_loss.item() 
                 val_acc += accuracy(outputs, answer)
