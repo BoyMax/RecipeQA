@@ -96,24 +96,28 @@ class Choice_ELMo_Net(nn.Module):
 class Infersent(nn.Module):
     def __init__(self, c_features):
         super().__init__()
-        self.linear = nn.Linear(4 * 2*c_features,1)
+        self.linear1 = nn.Linear(4 * 2*c_features, 2*c_features)
+        self.dropout = nn.Dropout(p = 0.2)
+        self.linear2 = nn.Linear(2*c_features, 1)
     def forward(self, g, c):
-        infersent_similarity = torch.cat((g, c, torch.abs(g - c), g * c), 1)
-        return self.linear(infersent_similarity)
+        infersent_similarity = torch.tanh(self.linear1(torch.cat((g, c, torch.abs(g - c), g * c), 1)))
+        infersent_similarity = self.dropout(infersent_similarity)
+        infersent_similarity = self.linear2(infersent_similarity)
+        return infersent_similarity
 
 class ImpatientReaderAttention(nn.Module):
-    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='Doc2Vec', embed_hidden_size=100):
+    def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embed_hidden_size=100):
         super(ImpatientReaderAttention, self).__init__()
         self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         self.textNet = Hierarchy_Elmo_Net(d_features, embed_hidden_size)
-        self.r_dim = d_features # num_direction * d_features (unidirectional: num_direction=1)
-        self.d_m = nn.Linear(in_features=d_features, out_features=m_features, bias=False)
+        self.r_dim = 2*d_features # num_direction * d_features (unidirectional: num_direction=1)
+        self.d_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
         self.r_m = nn.Linear(in_features=self.r_dim, out_features=m_features, bias=False)
-        self.q_m = nn.Linear(in_features=q_features, out_features=m_features, bias=False)
+        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
         self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)
         self.r_r = nn.Linear(in_features=self.r_dim, out_features=self.r_dim, bias=False)
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=g_features, bias=False)
-        self.q_g = nn.Linear(in_features=q_features, out_features=g_features, bias=False)
+        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
     def forward(self, texts, questions):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
@@ -132,7 +136,7 @@ class ImpatientReaderAttention(nn.Module):
             #s_i:(batch_size,step_len, s_dim)  text_output:(batch, seq_len, num_directions * hidden_size)
             # infered by r equation as follow: s_dim=1, r_dim = num_directions * hidden_size
             r = torch.matmul(s_i.permute(0,2,1), text_output) + torch.tanh(self.r_r(r)) # r(batch_size, 1, self.r_dim)
-        g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n[-1, :, :]))
+        g = torch.tanh(self.r_g(r).squeeze(1) + self.q_g(question_h_n))
         return g #(batch, g_dim) where g_dim = choice_dim
 
 class TemporalAttention(nn.Module):
@@ -199,7 +203,8 @@ class TSAModel(nn.Module):
     def __init__(self,d_features=512, im_features=512, q_features=512, m_features=256, g_features=256, c_features=256, 
                 similarity_type = 'cosine', embed_hidden_size=100): 
         super(TSAModel, self).__init__()
-        self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
+        self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
+        #self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
         #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
     
         self.choice = Choice_ELMo_Net(c_features)
@@ -210,8 +215,9 @@ class TSAModel(nn.Module):
     # choices(batch, 4, word_len)
     def forward(self, texts, images, questions, choices):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
+        g = self.impatient_attn(texts, questions)
         # temporal_attn = self.temporal_attn(texts, questions) 
-        g = self.temporal_attn(texts, questions) 
+        #g = self.temporal_attn(texts, questions) 
         # spatio_attn = self.spatio_attn(images, questions)
         # g: merge the temporal and spatio attention
         #g = torch.add(temporal_attn, spatio_attn)
