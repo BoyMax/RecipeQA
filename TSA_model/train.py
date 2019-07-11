@@ -11,15 +11,15 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--num_epochs", type=int, default=1)
-    parser.add_argument("--learning_rate", type=float, default=0.002)
-    parser.add_argument("--doc_hidden_size", type=int, default=128)
-    parser.add_argument("--img_hidden_size", type=int, default=128)
+    parser.add_argument("--num_epochs", type=int, default=4)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--doc_hidden_size", type=int, default=256)
+    parser.add_argument("--img_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=256) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=256) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
     parser.add_argument("--similarity_type", type=str, default="infersent") 
-    parser.add_argument("--embed_hidden_size", type=int, default=100)
+    parser.add_argument("--embed_hidden_size", type=int, default=256)
     parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)

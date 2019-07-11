@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import nltk
+import re
 #nltk.download('stopwords')
 #nltk.download('wordnet')
 from nltk.tokenize import word_tokenize
@@ -63,42 +64,153 @@ def lemmatization(splited_sentence):
 def lower_case(splited_sentence):
     return [w.lower() for w in splited_sentence]
 
+# 2.6 correct mis-spelling
+mispell_dict = {"aren't" : "are not", 
+"can't" : "cannot",
+"couldn't" : "could not",
+"didn't" : "did not",
+"doesn't" : "does not",
+"don't" : "do not",
+"hadn't" : "had not",
+"hasn't" : "has not",
+"haven't" : "have not",
+"he'd" : "he would",
+"he'll" : "he will",
+"he's" : "he is",
+"i'd" : "I would",
+"i'd" : "I had",
+"i'll" : "I will",
+"i'm" : "I am",
+"I'd" : "I would",
+"I'd" : "I had",
+"I'll" : "I will",
+"I'm" : "I am",
+"isn't" : "is not",
+"it's" : "it is",
+"it'll":"it will",
+"i've" : "I have",
+"let's" : "let us",
+"mightn't" : "might not",
+"mustn't" : "must not",
+"shan't" : "shall not",
+"she'd" : "she would",
+"she'll" : "she will",
+"she's" : "she is",
+"shouldn't" : "should not",
+"that's" : "that is",
+"there's" : "there is",
+"they'd" : "they would",
+"they'll" : "they will",
+"they're" : "they are",
+"they've" : "they have",
+"we'd" : "we would",
+"we're" : "we are",
+"weren't" : "were not",
+"we've" : "we have",
+"what'll" : "what will",
+"what're" : "what are",
+"what's" : "what is",
+"what've" : "what have",
+"where's" : "where is",
+"who'd" : "who would",
+"who'll" : "who will",
+"who're" : "who are",
+"who's" : "who is",
+"who've" : "who have",
+"won't" : "will not",
+"wouldn't" : "would not",
+"you'd" : "you would",
+"you'll" : "you will",
+"you're" : "you are",
+"you've" : "you have",
+"'re": " are",
+"wasn't": "was not",
+"we'll":" will",
+"didn't": "did not",
+"tryin'":"trying",
+"Aren't" : "are not",
+"Can't" : "cannot",
+"Couldn't" : "could not",
+"Didn't" : "did not",
+"Doesn't" : "does not",
+"Don't" : "do not",
+"Hadn't" : "had not",
+"Hasn't" : "has not",
+"Haven't" : "have not",
+"He'd" : "he would",
+"He'll" : "he will",
+"He's" : "he is",
+"I'd" : "I would",
+"I'd" : "I had",
+"I'll" : "I will",
+"I'm" : "I am",
+"I'd" : "I would",
+"I'd" : "I had",
+"I'll" : "I will",
+"I'm" : "I am",
+"Isn't" : "is not",
+"It's" : "it is",
+"It'll":"it will",
+"I've" : "I have",
+"Let's" : "let us",
+"Mightn't" : "might not",
+"Mustn't" : "must not",
+"Shan't" : "shall not",
+"She'd" : "she would",
+"She'll" : "she will",
+"She's" : "she is",
+"Shouldn't" : "should not",
+"That's" : "that is",
+"There's" : "there is",
+"They'd" : "they would",
+"They'll" : "they will",
+"They're" : "they are",
+"They've" : "they have",
+"We'd" : "we would",
+"We're" : "we are",
+"Weren't" : "were not",
+"We've" : "we have",
+"What'll" : "what will",
+"What're" : "what are",
+"What's" : "what is",
+"What've" : "what have",
+"Where's" : "where is",
+"Who'd" : "who would",
+"Who'll" : "who will",
+"Who're" : "who are",
+"Who's" : "who is",
+"Who've" : "who have",
+"Won't" : "will not",
+"Wouldn't" : "would not",
+"You'd" : "you would",
+"You'll" : "you will",
+"You're" : "you are",
+"You've" : "you have",
+"Wasn't": "was not",
+"We'll":" will",
+"Didn't": "did not",
+"'s":"is"}
+
+def _get_mispell(mispell_dict):
+    mispell_re = re.compile('(%s)' % '|'.join(mispell_dict.keys()))
+    return mispell_dict, mispell_re
+
+mispellings, mispellings_re = _get_mispell(mispell_dict)
+def replace_typical_misspell(text):
+    def replace(match):
+        return mispellings[match.group(0)]
+    return mispellings_re.sub(replace, text)
+
 # 2 clean string
 def clean_string(string):
-    cleaned_str = remove_special_symbol(string)
+    cleaned_str = replace_typical_misspell(string)
+    cleaned_str = remove_special_symbol(cleaned_str)
     cleaned_str = segmentation(cleaned_str)
-    cleaned_str = remove_stopword(cleaned_str)
+    # cleaned_str = remove_stopword(cleaned_str)
     # cleaned_str = stemming(cleaned_str)
-    cleaned_str = lemmatization(cleaned_str)
+    # cleaned_str = lemmatization(cleaned_str)
     cleaned_str = lower_case(cleaned_str)
     return cleaned_str
-
-
-# 3. process pretrained image features
-# 3.1 get image feature by load the feature file(json)
-def read_imgs_file(imageFeatureFile='../data/training_features_resnet50.json'):
-    # work with huge file
-    df = pd.read_json(imageFeatureFile, lines=True, chunksize=1e5)
-    features1 = pd.DataFrame() # Initialize the dataframe
-    try:
-        for df_chunk in df:
-            features1 = pd.concat([features1, df_chunk])
-    except ValueError:
-        print ('\nSome messages in the file cannot be parsed')
-    
-    '''
-    # only work with small file
-    with open(imageFeatureFile, 'r') as f:
-        features2 = json.load(f)
-    assert(features1 == features2)
-    '''
-    return features1
-# 3.2 get image feature by given a list of images' name, add features(dict)
-def extract_img_feature(img_names, img_features):
-    step_imgs = []
-    for img_name in img_names:
-        step_imgs.append(img_features[img_name][0][0])
-    return step_imgs
 
 # 4.load the raw data, preprocess, output the cleaned data
 def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', structure='hierarchy'): #, imageFeatureFile='../data/training_features_resnet50.json'):
@@ -151,7 +263,6 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                 for step in recipe['context']:
                     texts.append(clean_string(step['body']))
                     step_imgs = step['images']
-                    #step_imgs = extract_img_feature(step_img_list, img_features)
                     for img in step_imgs:
                         images.append(img)
                 for step in recipe['question']:

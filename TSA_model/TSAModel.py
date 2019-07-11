@@ -96,7 +96,7 @@ class Choice_ELMo_Net(nn.Module):
 class Infersent(nn.Module):
     def __init__(self, c_features):
         super().__init__()
-        self.linear = nn.Linear(4 * c_features,1)
+        self.linear = nn.Linear(4 * 2*c_features,1)
     def forward(self, g, c):
         infersent_similarity = torch.cat((g, c, torch.abs(g - c), g * c), 1)
         return self.linear(infersent_similarity)
@@ -144,8 +144,8 @@ class TemporalAttention(nn.Module):
         self.d_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
         self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
         self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=g_features, bias=False)
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=g_features, bias=False)
+        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
     def forward(self, texts, questions):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
@@ -169,7 +169,7 @@ class SpatialAttention(nn.Module):
         self.d_m = nn.Linear(in_features=2*im_features, out_features=m_features, bias=False)
         self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
         self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=g_features, bias=False)
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
     def forward(self, images, questions):
         #images:(batch, img_len, img_dim) images only contains the name of image
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
@@ -196,13 +196,13 @@ class TSAModel(nn.Module):
     # c_features: choice features
     # m_features is in attention, g features is the output features of attention.
     # c_features should equals to g_feature for comparing the similarity
-    def __init__(self,d_features=512, im_features=512, q_features=512, m_features = 256, g_features=100, c_features=100, 
+    def __init__(self,d_features=512, im_features=512, q_features=512, m_features=256, g_features=256, c_features=256, 
                 similarity_type = 'cosine', embed_hidden_size=100): 
         super(TSAModel, self).__init__()
         self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
         #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
     
-        self.choice = Choice_ELMo_Net(int(c_features/2))
+        self.choice = Choice_ELMo_Net(c_features)
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         elif similarity_type == 'infersent':
