@@ -28,7 +28,7 @@ class ELMo(nn.Module):
              self.elmo = Elmo(options_file, weight_file, 1, dropout=0.2, requires_grad = False).to(torch.device("cuda"))
         else:
             self.elmo = Elmo(options_file, weight_file, 1, dropout=0.2, requires_grad = False)
-        self.lstm = nn.LSTM(1024, word_hidden_size, num_layers=1, batch_first=True)
+        self.lstm = nn.LSTM(1024, word_hidden_size, num_layers=1, batch_first=True, bidirectional=True)
 
     def forward(self, step):  #sentences: [['s1w1','s1w2','s1w3'],['s2w1','s2w2']] s:sentence w:word (batch_size, word_len)
         character_ids = batch_to_ids(step)
@@ -36,13 +36,13 @@ class ELMo(nn.Module):
             character_ids = character_ids.cuda()
         embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
         output, (h_n, c_n) = self.lstm(embeddings)
-        return h_n[-1, :, :] #(batch, hidden_size)
+        return torch.cat((h_n[-2,:,:], h_n[-1,:,:]), dim=1) #(batch, 2*hidden_size)
 
 class Hierarchy_Elmo_Net(nn.Module):
     def __init__(self, hidden_size=256, word_hidden_size=100):
         super(Hierarchy_Elmo_Net, self).__init__()
         self.embedding = ELMo(word_hidden_size)
-        self.lstm = nn.LSTM(input_size=word_hidden_size, hidden_size=hidden_size, num_layers=1, bidirectional=True)
+        self.lstm = nn.LSTM(input_size=2*word_hidden_size, hidden_size=hidden_size, num_layers=1, bidirectional=True)
     def forward(self, texts): #texts (step_len, batch_size, word_len)
         batch = []
         for text in texts:
@@ -59,7 +59,7 @@ class Hierarchy_Elmo_Net(nn.Module):
         output,(h_n, c_n) = self.lstm(batch) 
         output = output.permute(1,0,2)
         h_n = torch.cat((h_n[-2,:,:], h_n[-1,:,:]), dim=1)
-        #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
+        #output: (batch, seq_len, num_directions * hidden_size), h_n: (batch, hidden_size)
         return output, h_n
 
 class Initial_Hierarchy_Elmo_Net(nn.Module):
@@ -85,7 +85,7 @@ class Initial_Hierarchy_Elmo_Net(nn.Module):
         output,(h_n, c_n) = self.lstm(batch, h_0) 
         output = output.permute(1,0,2)
         h_n = torch.cat((h_n[-2,:,:], h_n[-1,:,:]), dim=1)
-        #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
+        #output: (batch, seq_len, num_directions * hidden_size), h_n: (batch, hidden_size)
         return output, h_n
 
 class Hierarchy_Doc2Vec_Net(nn.Module):
@@ -273,13 +273,13 @@ class TSAModel(nn.Module):
                 similarity_type = 'cosine', embedding_type='ELMo', embed_hidden_size=100): 
         super(TSAModel, self).__init__()
         self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embedding_type, embed_hidden_size)
-        self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embedding_type, embed_hidden_size)
+        #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embedding_type, embed_hidden_size)
         if embedding_type == 'Doc2Vec':
             self.choice = Choice_Doc2Vec_Net() # for embedding
             self.right_answer = Hierarchy_Doc2Vec_Net(q_features)
             self.wrong_answer = Hierarchy_Doc2Vec_Net(q_features)
         elif embedding_type == 'ELMo':
-            self.choice = Choice_ELMo_Net(c_features)
+            self.choice = Choice_ELMo_Net(int(c_features/2))
             self.right_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
             self.wrong_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         if similarity_type == 'cosine':
@@ -289,10 +289,11 @@ class TSAModel(nn.Module):
     # choices(batch, 4, word_len)
     def forward(self, texts, images, questions, choices):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
-        temporal_attn = self.temporal_attn(texts, questions) 
-        spatio_attn = self.spatio_attn(images, questions)
+        # temporal_attn = self.temporal_attn(texts, questions) 
+        g = self.temporal_attn(texts, questions) 
+        # spatio_attn = self.spatio_attn(images, questions)
         # g: merge the temporal and spatio attention
-        g = torch.add(temporal_attn, spatio_attn)
+        #g = torch.add(temporal_attn, spatio_attn)
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_output = self.choice(choices)
         # choice_output: (batch_size, choice_len, c_dim)
