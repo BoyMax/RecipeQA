@@ -203,8 +203,8 @@ class TSAModel(nn.Module):
     def __init__(self,d_features=512, im_features=512, q_features=512, m_features=256, g_features=256, c_features=256, 
                 similarity_type = 'cosine', embed_hidden_size=100): 
         super(TSAModel, self).__init__()
-        self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
-        #self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
+        # self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
+        self.temporal_attn = TemporalAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
         #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
     
         self.choice = Choice_ELMo_Net(c_features)
@@ -215,9 +215,9 @@ class TSAModel(nn.Module):
     # choices(batch, 4, word_len)
     def forward(self, texts, images, questions, choices):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
-        g = self.impatient_attn(texts, questions)
+        # g = self.impatient_attn(texts, questions)
         # temporal_attn = self.temporal_attn(texts, questions) 
-        #g = self.temporal_attn(texts, questions) 
+        g = self.temporal_attn(texts, questions) 
         # spatio_attn = self.spatio_attn(images, questions)
         # g: merge the temporal and spatio attention
         #g = torch.add(temporal_attn, spatio_attn)
