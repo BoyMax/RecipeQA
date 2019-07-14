@@ -23,7 +23,7 @@ class ELMo(nn.Module):
         try:
             embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
         except:
-            print(step)       
+            print(step)
         output, (h_n, c_n) = self.lstm(embeddings)
         return torch.cat((h_n[-2,:,:], h_n[-1,:,:]), dim=1) #(batch, 2*hidden_size)
 
