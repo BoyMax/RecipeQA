@@ -20,7 +20,10 @@ class ELMo(nn.Module):
         character_ids = batch_to_ids(step)
         if torch.cuda.is_available(): 
             character_ids = character_ids.cuda()
-        embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
+        try:
+            embeddings = self.elmo(character_ids)['elmo_representations'][0] # embeddings:(batch, word_len, embed_dim) as (2, 3, 1024)
+        except:
+            print(step)       
         output, (h_n, c_n) = self.lstm(embeddings)
         return torch.cat((h_n[-2,:,:], h_n[-1,:,:]), dim=1) #(batch, 2*hidden_size)
 
