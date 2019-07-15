@@ -150,11 +150,12 @@ def train(args):
         '''
 
         #2. validation all batches
+        print('Validation process')
         model.eval()
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
-            for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
+            for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(val_loader)):
                 # image_feature = extract_image_feature(image, img_features)
                 image_feature=''
 
