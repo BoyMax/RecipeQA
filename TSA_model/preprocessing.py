@@ -195,15 +195,19 @@ def _get_mispell(mispell_dict):
     mispell_re = re.compile('(%s)' % '|'.join(mispell_dict.keys()))
     return mispell_dict, mispell_re
 
-mispellings, mispellings_re = _get_mispell(mispell_dict)
 def replace_typical_misspell(text):
+    mispellings, mispellings_re = _get_mispell(mispell_dict)
     def replace(match):
         return mispellings[match.group(0)]
     return mispellings_re.sub(replace, text)
 
+def extract_num_letter(string):
+    return re.sub(r"[^a-zA-Z0-9]"," ",string)
+
 # 2 clean string
 def clean_string(string):
     cleaned_str = replace_typical_misspell(string)
+    cleaned_str = extract_num_letter(cleaned_str)
     cleaned_str = remove_special_symbol(cleaned_str)
     cleaned_str = segmentation(cleaned_str)
     # cleaned_str = remove_stopword(cleaned_str)
