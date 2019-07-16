@@ -136,7 +136,7 @@ def train(args):
         
         if torch.cuda.is_available():
             # use open file for gcp
-            f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
+            f = open('../data/validation_features_resnet50.json', 'r', encoding='utf8').read()
             img_features = json.loads(f)
         else:
             # use pandas.read_json for local machine
