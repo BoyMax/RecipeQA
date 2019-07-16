@@ -55,7 +55,7 @@ class Initial_Hierarchy_Elmo_Net(nn.Module):
     def __init__(self, hidden_size=256, word_hidden_size=100):
         super(Initial_Hierarchy_Elmo_Net, self).__init__()
         self.embedding = ELMo(word_hidden_size)
-        self.lstm = nn.LSTM(input_size=word_hidden_size, hidden_size=hidden_size, num_layers=1, bidirectional=True)
+        self.lstm = nn.LSTM(input_size=2*word_hidden_size, hidden_size=hidden_size, num_layers=1, bidirectional=True)
     def forward(self, texts, h_0): #texts (step_len, batch_size, word_len)
         batch = []
         for text in texts:
@@ -227,12 +227,10 @@ class TSAModel(nn.Module):
                 similarity_type = 'cosine', embed_hidden_size=100): 
         super(TSAModel, self).__init__()
         # self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
-       
-        #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
-    
         self.choice = Choice_ELMo_Net(c_features, embed_hidden_size)
         self.temporal_attn = TemporalAttention(d_features, q_features, c_features, m_features, g_features, embed_hidden_size)
-        
+        self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
+
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         elif similarity_type == 'infersent':
@@ -241,14 +239,15 @@ class TSAModel(nn.Module):
     def forward(self, texts, images, questions, choices):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
         # g = self.impatient_attn(texts, questions)
-        # temporal_attn = self.temporal_attn(texts, questions) 
-        # spatio_attn = self.spatio_attn(images, questions)
-        # g: merge the temporal and spatio attention
-        #g = torch.add(temporal_attn, spatio_attn)
         
         choice_embed, choice_h_n = self.choice(choices)
         # choice_embed: (batch_size, choice_len, c_dim)
-        g = self.temporal_attn(texts, questions, choice_h_n) 
+        temporal_attn = self.temporal_attn(texts, questions, choice_h_n) 
+        spatio_attn = self.spatio_attn(images, questions)
+        # g: merge the temporal and spatio attention
+        g = torch.add(temporal_attn, spatio_attn)
+
+        # g = self.temporal_attn(texts, questions, choice_h_n) 
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_len = choice_embed.size()[1]
         similarity_scores = []
