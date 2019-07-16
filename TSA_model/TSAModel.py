@@ -105,7 +105,7 @@ class Infersent(nn.Module):
     def __init__(self, c_features):
         super().__init__()
         self.linear1 = nn.Linear(4 * 2*c_features, 2*c_features)
-        self.dropout = nn.Dropout(p = 0.3)
+        self.dropout = nn.Dropout(p = 0.1)
         self.linear2 = nn.Linear(2*c_features, 1)
     def forward(self, g, c):
         infersent_similarity = torch.tanh(self.linear1(torch.cat((g, c, torch.abs(g - c), g * c), 1)))
