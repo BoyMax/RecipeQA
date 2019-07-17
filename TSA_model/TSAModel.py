@@ -105,7 +105,7 @@ class Infersent(nn.Module):
     def __init__(self, c_features):
         super().__init__()
         self.linear1 = nn.Linear(4 * 2*c_features, 2*c_features)
-        self.dropout = nn.Dropout(p = 0.1)
+        self.dropout = nn.Dropout(p = 0.2)
         self.linear2 = nn.Linear(2*c_features, 1)
     def forward(self, g, c):
         infersent_similarity = torch.tanh(self.linear1(torch.cat((g, c, torch.abs(g - c), g * c), 1)))
@@ -155,16 +155,16 @@ class TemporalAttention(nn.Module):
         self.choiceNet = Hierarchy_Elmo_Net(c_features, embed_hidden_size)
         self.r_dim = 2*d_features # num_direction * d_features (unidirectional: num_direction=1)
         
-        self.d_q_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
-        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
-        self.m_alpha1 = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
+        self.d_q_m = nn.Linear(in_features=2*d_features, out_features=m_features)
+        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features)
+        self.m_alpha1 = nn.Linear(in_features=m_features, out_features=1)  # get spatial attention score between question and text
         
-        self.d_c_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
-        self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features, bias=False)
-        self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1, bias=False)
+        self.d_c_m = nn.Linear(in_features=2*d_features, out_features=m_features)
+        self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features)
+        self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1)
         
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
+        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features)
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
     def forward(self, texts, questions, choice_h_n):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
@@ -193,10 +193,10 @@ class SpatialAttention(nn.Module):
         self.imageNet = nn.LSTM(input_size=1000, hidden_size=im_features, num_layers=1, batch_first=True, bidirectional=True)
         self.imageEncoder = nn.LSTM(input_size=2*im_features, hidden_size=q_features, num_layers=1, batch_first=True, bidirectional=True)
         self.questionEncoder = Initial_Hierarchy_Elmo_Net(q_features, embed_hidden_size)
-        self.d_m = nn.Linear(in_features=2*im_features, out_features=m_features, bias=False)
-        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
-        self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
+        self.d_m = nn.Linear(in_features=2*im_features, out_features=m_features)
+        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features)
+        self.m_s = nn.Linear(in_features=m_features, out_features=1)  # get spatial attention score between question and text
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
     def forward(self, images, questions):
         #images:(batch, img_len, img_dim) images only contains the name of image
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
