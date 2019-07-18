@@ -211,12 +211,11 @@ def extract_image_feature(image, features):
             if img == '0':
                 imgs_feature.append(np.zeros(1000).tolist())
             else:
-                # for pandas.read_json
-                imgs_feature.append(features[img][0][0])
-                '''
-                # for json.load(file)
-                imgs_feature.append(features[img][0])
-                '''
+                if torch.cuda.is_available():
+                    imgs_feature.append(features[img][0])
+                else:
+                    # for pandas.read_json
+                    imgs_feature.append(features[img][0][0])
         image_features.append(imgs_feature)
     if torch.cuda.is_available():
         image_features = torch.FloatTensor(image_features).cuda()
