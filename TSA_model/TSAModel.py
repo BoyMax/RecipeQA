@@ -167,7 +167,7 @@ class TemporalAttention(nn.Module):
         self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
-    def forward(self, texts, questions, choice_h_n):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
+    def forward(self, texts, questions, choice_h_n, spatio_q_h_n):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
         text_output, text_h_n = self.textNet(texts) #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
         
@@ -183,7 +183,7 @@ class TemporalAttention(nn.Module):
         weighted_c_d = torch.sum(alpha_c_d * text_output, 1) # alpha_q_d * text_output:(batch_size, step_len, num_directions * hidden_size), r means (weight_att * text)
         #weighted_q_d:(batch, num_directions * hidden_size)
         
-        g = torch.tanh(self.r_g(weighted_q_d) + self.r_g(weighted_c_d) + self.q_g(question_h_n)) #question_h_n: (num_layers * num_directions, batch, hidden_size)
+        g = torch.tanh(self.r_g(weighted_q_d) + self.r_g(weighted_c_d) + self.q_g(spatio_q_h_n)) #question_h_n: (num_layers * num_directions, batch, hidden_size)
         return g #(batch, g_dim) where g_dim = choice_dim #means the embedding between text and question
 
 class SpatialAttention(nn.Module):
@@ -202,8 +202,7 @@ class SpatialAttention(nn.Module):
         self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features)
         self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1)
         
-        
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
+        # self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
     def forward(self, images, questions, choice_h_n):
         #images:(batch, img_len, img_dim) images only contains the name of image
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
@@ -228,8 +227,8 @@ class SpatialAttention(nn.Module):
         #input the image attention the question encoder
         q_encoder_output, q_encoder_h_n = self.questionEncoder(questions, img_encoder_h_n)
         #q_encoder_h_n:(batch, 2*hidden_size)
-        im_q_embed = torch.tanh(self.q_g(q_encoder_h_n))
-        return im_q_embed #im_q_embed:(batch, g_dim)
+        #im_q_embed = torch.tanh(self.q_g(q_encoder_h_n))
+        return q_encoder_h_n #im_q_embed #im_q_embed:(batch, g_dim)
 
 class TSAModel(nn.Module):
     # d_features: document features
@@ -256,10 +255,12 @@ class TSAModel(nn.Module):
         
         choice_embed, choice_h_n = self.choice(choices)
         # choice_embed: (batch_size, choice_len, c_dim)
-        temporal_attn = self.temporal_attn(texts, questions, choice_h_n) 
-        spatio_attn = self.spatio_attn(images, questions, choice_h_n)
+        spatio_attn_q_h_n = self.spatio_attn(images, questions, choice_h_n)
+        #temporal_attn = self.temporal_attn(texts, questions, choice_h_n)
+        g = self.temporal_attn(texts, questions, choice_h_n, spatio_attn_q_h_n) 
+        
         # g: merge the temporal and spatio attention
-        g = torch.add(temporal_attn, spatio_attn)
+        #g = torch.add(temporal_attn, spatio_attn)
 
         # g = self.temporal_attn(texts, questions, choice_h_n) 
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
