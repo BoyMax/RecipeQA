@@ -152,9 +152,7 @@ class TemporalAttention(nn.Module):
         super(TemporalAttention, self).__init__()
         self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         self.textNet = Hierarchy_Elmo_Net(d_features, embed_hidden_size)
-        self.choiceNet = Hierarchy_Elmo_Net(c_features, embed_hidden_size)
-        self.r_dim = 2*d_features # num_direction * d_features (unidirectional: num_direction=1)
-        
+
         self.d_q_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
         self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
         self.m_alpha1 = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
@@ -163,7 +161,8 @@ class TemporalAttention(nn.Module):
         self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features, bias=False)
         self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1, bias=False)
         
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
+        self.d_g = nn.Linear(in_features=2*d_features, out_features=2*g_features, bias=False)
+        self.c_g = nn.Linear(in_features=2*c_features, out_features=2*g_features, bias=False)
         self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
@@ -187,35 +186,42 @@ class TemporalAttention(nn.Module):
         return g #(batch, g_dim) where g_dim = choice_dim #means the embedding between text and question
 
 class SpatialAttention(nn.Module):
-    def __init__(self,im_features=512, q_features=512, m_features=256, g_features=100, embed_hidden_size=256):
+    def __init__(self, im_features, q_features, c_features, m_features, g_features, embed_hidden_size):
         super(SpatialAttention, self).__init__()
         self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
-        self.imageNet = nn.LSTM(input_size=1000, hidden_size=im_features, num_layers=1, batch_first=True, bidirectional=True)
-        self.imageEncoder = nn.LSTM(input_size=2*im_features, hidden_size=q_features, num_layers=1, batch_first=True, bidirectional=True)
-        self.questionEncoder = Initial_Hierarchy_Elmo_Net(q_features, embed_hidden_size)
-        self.d_m = nn.Linear(in_features=2*im_features, out_features=m_features, bias=False)
-        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
-        self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)  # get spatial attention score between question and text
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
-    def forward(self, images, questions):
+        self.imageNet = nn.LSTM(input_size=1000, hidden_size=im_features, num_layers=1, batch_first=True, bidirectional=True)        
+
+        self.p_q_m = nn.Linear(in_features=2*im_features, out_features=m_features)
+        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features)
+        self.m_alpha1 = nn.Linear(in_features=m_features, out_features=1)  # get spatial attention score between question and text
+        
+        self.p_c_m = nn.Linear(in_features=2*im_features, out_features=m_features)
+        self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features)
+        self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1)
+        
+        self.p_g = nn.Linear(in_features=2*im_features, out_features=2*g_features)
+        self.c_g = nn.Linear(in_features=2*c_features, out_features=2*g_features)
+        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features)
+    def forward(self, images, questions, choice_h_n):
         #images:(batch, img_len, img_dim) images only contains the name of image
         question_output, question_h_n = self.questionNet(questions) #question_output: (batch, seq_len, num_directions * hidden_size)
         img_output, img_h_n = self.imageNet(images) #img_h_n (num_layers * num_directions, batch, hidden_size)
-        m = torch.tanh(self.d_m(img_output) + self.q_m(question_h_n.unsqueeze(1))) #m(batch_size, step_len, m_dim)
-        s = F.softmax(self.m_s(m), dim=1) # dim=1 means doing softmax for steps, s is the attention score
-        #s:(batch_size,step_len, 1)  img_output:(batch, seq_len, num_directions * hidden_size)
-        # r means weighted_img
-        r = s * img_output # s * img_output:(batch_size, step_len, num_directions * hidden_size), r means (weight_att * text)
-        #r:(batch, seq_len, num_directions * hidden_size)
-        # image encoder with weighted image
-        img_encoder_output, img_encoder_h_n = self.imageEncoder(r)
-        #img_encoder_h_n (num_layers * num_directions, batch, hidden_size)
+        
+        m_q_p = torch.tanh(self.p_q_m(img_output) + self.q_m(question_h_n.unsqueeze(1))) #m(batch_size, step_len, m_dim)
+        alpha_q_p = F.softmax(self.m_alpha1(m_q_p), dim=1) # dim=1 means doing softmax for steps, s is the attention score
+        #alpha_q_p:(batch_size,step_len, 1)  img_output:(batch, seq_len, num_directions * hidden_size)
+        weighted_q_p = torch.sum(alpha_q_p * img_output, 1)
+        # weighted_q_p:(batch, num_directions * hidden_size)
 
-        #input the image attention the question encoder
-        q_encoder_output, q_encoder_h_n = self.questionEncoder(questions, img_encoder_h_n)
-        #q_encoder_h_n:(batch, 2*hidden_size)
-        im_q_embed = torch.tanh(self.q_g(q_encoder_h_n))
-        return im_q_embed #im_q_embed:(batch, g_dim)
+        m_c_p = torch.tanh(self.p_c_m(img_output) + self.c_m(choice_h_n.unsqueeze(1))) #m(batch_size, step_len, m_dim)
+        alpha_c_p = F.softmax(self.m_alpha2(m_c_p), dim=1) # dim=1 means doing softmax for steps, alpha_q_d is the attention score
+        #alpha_c_p:(batch_size,step_len, 1)  img_output:(batch, seq_len, num_directions * hidden_size)
+        weighted_c_p = torch.sum(alpha_c_p * img_output, 1) # alpha_q_d * text_output:(batch_size, step_len, num_directions * hidden_size), r means (weight_att * text)
+        #weighted_c_p:(batch, num_directions * hidden_size)
+
+        g = torch.tanh(self.p_g(weighted_q_p) + self.c_g(weighted_c_p) + self.q_g(question_h_n)) #question_h_n: (num_layers * num_directions, batch, hidden_size)
+
+        return g
 
 class TSAModel(nn.Module):
     # d_features: document features
@@ -228,8 +234,8 @@ class TSAModel(nn.Module):
         super(TSAModel, self).__init__()
         # self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
         self.choice = Choice_ELMo_Net(c_features, embed_hidden_size)
-        self.temporal_attn = TemporalAttention(d_features, q_features, c_features, m_features, g_features, embed_hidden_size)
-        self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
+        # self.temporal_attn = TemporalAttention(d_features, q_features, c_features, m_features, g_features, embed_hidden_size)
+        self.spatio_attn = SpatialAttention(im_features, q_features, c_features, m_features, g_features, embed_hidden_size)
 
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -239,16 +245,11 @@ class TSAModel(nn.Module):
     def forward(self, texts, images, questions, choices):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
         # g = self.impatient_attn(texts, questions)
-        
         choice_embed, choice_h_n = self.choice(choices)
         # choice_embed: (batch_size, choice_len, c_dim)
-        temporal_attn = self.temporal_attn(texts, questions, choice_h_n) 
-        spatio_attn = self.spatio_attn(images, questions)
-        # g: merge the temporal and spatio attention
-        g = torch.add(temporal_attn, spatio_attn)
-
-        # g = self.temporal_attn(texts, questions, choice_h_n) 
+        g = self.spatio_attn(images, questions, choice_h_n)
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
+
         choice_len = choice_embed.size()[1]
         similarity_scores = []
         for i in range(choice_len):
