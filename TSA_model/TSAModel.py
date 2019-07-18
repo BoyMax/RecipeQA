@@ -153,7 +153,6 @@ class TemporalAttention(nn.Module):
         self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         self.textNet = Hierarchy_Elmo_Net(d_features, embed_hidden_size)
         self.choiceNet = Hierarchy_Elmo_Net(c_features, embed_hidden_size)
-        self.r_dim = 2*d_features # num_direction * d_features (unidirectional: num_direction=1)
         
         self.d_q_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
         self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
@@ -163,7 +162,8 @@ class TemporalAttention(nn.Module):
         self.c_m = nn.Linear(in_features=2*c_features, out_features=m_features, bias=False)
         self.m_alpha2 = nn.Linear(in_features=m_features, out_features=1, bias=False)
         
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
+        self.d_g = nn.Linear(in_features=2*d_features, out_features=2*g_features, bias=False)
+        self.c_g = nn.Linear(in_features=2*c_features, out_features=2*g_features, bias=False)
         self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
@@ -183,11 +183,11 @@ class TemporalAttention(nn.Module):
         weighted_c_d = torch.sum(alpha_c_d * text_output, 1) # alpha_q_d * text_output:(batch_size, step_len, num_directions * hidden_size), r means (weight_att * text)
         #weighted_q_d:(batch, num_directions * hidden_size)
         
-        g = torch.tanh(self.r_g(weighted_q_d) + self.r_g(weighted_c_d) + self.q_g(question_h_n)) #question_h_n: (num_layers * num_directions, batch, hidden_size)
+        g = torch.tanh(self.d_g(weighted_q_d) + self.c_g(weighted_c_d) + self.q_g(question_h_n)) #question_h_n: (num_layers * num_directions, batch, hidden_size)
         return g #(batch, g_dim) where g_dim = choice_dim #means the embedding between text and question
 
 class SpatialAttention(nn.Module):
-    def __init__(self,im_features=512, q_features=512, m_features=256, g_features=100, embed_hidden_size=256):
+    def __init__(self,im_features, q_features, m_features, g_features, embed_hidden_size):
         super(SpatialAttention, self).__init__()
         self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         self.imageNet = nn.LSTM(input_size=1000, hidden_size=im_features, num_layers=1, batch_first=True, bidirectional=True)
@@ -229,7 +229,7 @@ class TSAModel(nn.Module):
         # self.impatient_attn = ImpatientReaderAttention(d_features, q_features, m_features, g_features, embed_hidden_size)
         self.choice = Choice_ELMo_Net(c_features, embed_hidden_size)
         self.temporal_attn = TemporalAttention(d_features, q_features, c_features, m_features, g_features, embed_hidden_size)
-        self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
+        #self.spatio_attn = SpatialAttention(im_features, q_features, m_features, g_features, embed_hidden_size)
 
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -242,12 +242,12 @@ class TSAModel(nn.Module):
         
         choice_embed, choice_h_n = self.choice(choices)
         # choice_embed: (batch_size, choice_len, c_dim)
-        temporal_attn = self.temporal_attn(texts, questions, choice_h_n) 
-        spatio_attn = self.spatio_attn(images, questions)
+        # temporal_attn = self.temporal_attn(texts, questions, choice_h_n) 
+        #spatio_attn = self.spatio_attn(images, questions)
         # g: merge the temporal and spatio attention
-        g = torch.add(temporal_attn, spatio_attn)
+        #g = torch.add(temporal_attn, spatio_attn)
 
-        # g = self.temporal_attn(texts, questions, choice_h_n) 
+        g = self.temporal_attn(texts, questions, choice_h_n) 
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_len = choice_embed.size()[1]
         similarity_scores = []
