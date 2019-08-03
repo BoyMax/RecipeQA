@@ -167,7 +167,7 @@ def collate_hierarchy_wrapper(batch):
     choice = list(transposed_data[3])
     answer = list(transposed_data[4])
     # padding steps for text and question
-    text = padding_steps(text, "step_first")
+    # text = padding_steps(text, "step_first")
     question = padding_steps(question, "step_first")
     choice = padding_steps(choice, "step_first")
     #image = padding_imgs(image)

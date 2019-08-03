@@ -1,7 +1,7 @@
 import argparse
 from tqdm import tqdm
 from utils import *
-from TSAModel import TSAModel
+from TSAModel import HastyModel
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,8 +10,8 @@ import torch.nn.functional as F
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--num_epochs", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=25)
+    parser.add_argument("--num_epochs", type=int, default=6)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--img_hidden_size", type=int, default=256)
@@ -49,11 +49,11 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
 def log_data(log_path,train_loss,train_accuracy,val_loss,val_accuracy):
     file = open(log_path,'a')
     if torch.cuda.is_available():
-        data = str(train_loss) +' '+ str(f'{train_accuracy:.2f}') \
-            +' '+ str(val_loss)+ ' ' + str(f'{val_accuracy:.2f}')
+        data = str(train_loss) +' '+ str(f'{train_accuracy:.4f}') \
+            +' '+ str(val_loss)+ ' ' + str(f'{val_accuracy:.4f}')
     else:
-        data = str(train_loss) + ' '+ str(f'{train_accuracy:.2f}') \
-                +' '+str(val_loss)+' '+str(f'{val_accuracy:.2f}')
+        data = str(train_loss) + ' '+ str(f'{train_accuracy:.4f}') \
+                +' '+str(val_loss)+' '+str(f'{val_accuracy:.4f}')
     file.write(data)
     file.write('\n')
     file.close()
@@ -62,8 +62,7 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #### Initialization
     # initialize model
-    model = TSAModel(args.doc_hidden_size, args.img_hidden_size, args.question_hidden_size, args.attention_hidden_size, 
-                                args.choice_hidden_size, args.choice_hidden_size, args.similarity_type,args.embed_hidden_size)
+    model = HastyModel(args.question_hidden_size, args.choice_hidden_size, args.choice_hidden_size, args.similarity_type, args.embed_hidden_size)
     model = model.to(device)
     # initialize optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -86,23 +85,7 @@ def train(args):
         #1. get training data
         train_dataset = recipeDataset(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')
         train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
-
-        '''
-        if torch.cuda.is_available():
-            # use open file for gcp
-            f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
-            img_features = json.loads(f)
-        else:
-            # use pandas.read_json for local machine
-            df = pd.read_json('../data/training_features_resnet50.json', lines=True, chunksize=1e5)
-            img_features = pd.DataFrame() # Initialize the dataframe
-            try:
-                for df_chunk in df:
-                    img_features = pd.concat([img_features, df_chunk])
-            except ValueError:
-                print ('\nSome messages in the file cannot be parsed')
-        '''
-
+        
         #2. training all batches
         model.train()
         running_loss = 0
@@ -117,7 +100,7 @@ def train(args):
             # zero the parameter gradients
             optimizer.zero_grad()
             # forward + backward + optimize
-            outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+            outputs = model(question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
             outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
             loss = criterion(outputs, answer)
             loss.backward()
@@ -132,35 +115,16 @@ def train(args):
         #1. get validation data
         val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
         val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
-        
-        '''
-        if torch.cuda.is_available():
-            # use open file for gcp
-            f = open('../data/training_features_resnet50.json', 'r', encoding='utf8').read()
-            img_features = json.loads(f)
-        else:
-            # use pandas.read_json for local machine
-            df = pd.read_json('../data/validation_features_resnet50.json', lines=True, chunksize=1e5)
-            img_features = pd.DataFrame() # Initialize the dataframe
-            try:
-                for df_chunk in df:
-                    img_features = pd.concat([img_features, df_chunk])
-            except ValueError:
-                print ('\nSome messages in the file cannot be parsed')
-        '''
 
         #2. validation all batches
         model.eval()
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
-            for batch_index, (text, image, question, choice, answer) in enumerate(val_loader):
-                # image_feature = extract_image_feature(image, img_features)
-                image_feature=''
-
+            for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(val_loader)):
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
-                outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
+                outputs = model(question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
                 outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                 validation_loss = criterion(outputs, answer)
                 # statistics
