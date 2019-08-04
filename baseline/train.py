@@ -17,10 +17,10 @@ def get_args():
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
     parser.add_argument("--choice_hidden_size", type=int, default=100) #choice_hidden_size
     parser.add_argument("--attention_hidden_size", type=int, default=256) # m_features
-    parser.add_argument("--similarity_type", type=str, default="cosine") 
+    parser.add_argument("--similarity_type", type=str, default="infersent") 
     parser.add_argument("--embedding_type", type=str, default="ELMo") 
     parser.add_argument("--embed_hidden_size", type=int, default=100)
-    parser.add_argument("--loss", type=str, default="hinge_rank") 
+    parser.add_argument("--loss", type=str, default="cross_entropy") 
     parser.add_argument("--log_path", type=str, default="result.txt")
     parser.add_argument("--saved_path", type=str, default="trained_models")
     parser.add_argument("--load_model", type=str, default=None)
