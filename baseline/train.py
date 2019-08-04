@@ -11,7 +11,7 @@ import torch.nn.functional as F
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=50)
-    parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--doc_hidden_size", type=int, default=256)
     parser.add_argument("--question_hidden_size", type=int, default=100) # for hinge rank loss: question_hidden_size = choice_hidden_size
@@ -92,10 +92,10 @@ def train(args):
         train_dataset = recipeDataset(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')
         if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
             train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
-        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
-            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn= collate_batch_hingeRank_wrapper)
         elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
             train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
+        elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
+            train_loader = Data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
 
         #2. training all batches
         model.train()
