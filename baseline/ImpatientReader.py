@@ -198,7 +198,7 @@ class ImpatientReaderModel(nn.Module):
             choice_outputs= choice_output[:,i,:] #choice_output(batch_size, dim)
             similarity = self.similarity(g, choice_outputs) #similarity(batch_size)
             similarity_scores.append(similarity) # for accuracy 
-        return similarity_scores, g, r_h_n[-1,:,:], w_h_n[-1,:,:]
+        return similarity_scores, g, r_h_n, w_h_n
         # similarity_scores #(choice_len, batch)
 
 class HingeRankLoss(nn.Module):
