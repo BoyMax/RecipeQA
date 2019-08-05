@@ -101,7 +101,7 @@ def train(args):
         model.train()
         running_loss = 0
         running_acc = 0
-        for batch_index, (text, image, question, choice, answer, replaced_choice) in tqdm(enumerate(train_loader)):
+        for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(train_loader)):
             answer = torch.LongTensor(answer).to(device)
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -125,17 +125,17 @@ def train(args):
         val_dataset = recipeDataset(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')
         if args.loss == "hinge_rank" and args.embedding_type == "ELMo":
             val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_hingeRank_wrapper)
-        elif args.loss == "hinge_rank" and args.embedding_type == "Doc2Vec":
-            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_hingeRank_wrapper)
         elif args.loss == "cross_entropy" and args.embedding_type == "Doc2Vec":
             val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch_wrapper)
+        elif args.loss == "cross_entropy" and args.embedding_type == "ELMo":
+            val_loader = Data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_hierarchy_wrapper)
 
         #2. validation all batches
         model.eval()
         val_loss = 0
         val_acc = 0
         with torch.no_grad():
-            for batch_index, (text, image, question, choice, answer, replaced_choice) in tqdm(enumerate(val_loader)):
+            for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(val_loader)):
                 answer = torch.LongTensor(answer).to(device)
                 # forward + compute loss and accuracy
                 if args.loss == "hinge_rank":
