@@ -79,7 +79,7 @@ class Hierarchy_Doc2Vec_Net(nn.Module):
             batch = torch.Tensor(batch) # torch.Tensor(batch): covert list to tensor
         output,(h_n, c_n) = self.lstm(batch) 
         #output: (batch, seq_len, num_directions * hidden_size), h_n: (num_layers * num_directions, batch, hidden_size)
-        return output, h_n
+        return output, h_n[-1,:,:]
 
 class Attention(nn.Module):
     def __init__(self,d_features=512, q_features=512, m_features = 256, g_features=100, embedding_type='Doc2Vec', embed_hidden_size=100):
@@ -90,14 +90,14 @@ class Attention(nn.Module):
         elif embedding_type == 'ELMo':
             self.questionNet = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
             self.textNet = Hierarchy_Elmo_Net(d_features, embed_hidden_size)
-        self.r_dim = 2*d_features # num_direction * d_features (unidirectional: num_direction=1)
-        self.d_m = nn.Linear(in_features=2*d_features, out_features=m_features, bias=False)
+        self.r_dim = d_features # num_direction * d_features (unidirectional: num_direction=1)
+        self.d_m = nn.Linear(in_features=d_features, out_features=m_features, bias=False)
         self.r_m = nn.Linear(in_features=self.r_dim, out_features=m_features, bias=False)
-        self.q_m = nn.Linear(in_features=2*q_features, out_features=m_features, bias=False)
+        self.q_m = nn.Linear(in_features=q_features, out_features=m_features, bias=False)
         self.m_s = nn.Linear(in_features=m_features, out_features=1, bias=False)
         self.r_r = nn.Linear(in_features=self.r_dim, out_features=self.r_dim, bias=False)
-        self.r_g = nn.Linear(in_features=self.r_dim, out_features=2*g_features, bias=False)
-        self.q_g = nn.Linear(in_features=2*q_features, out_features=2*g_features, bias=False)
+        self.r_g = nn.Linear(in_features=self.r_dim, out_features=g_features, bias=False)
+        self.q_g = nn.Linear(in_features=q_features, out_features=g_features, bias=False)
         # input shape of nn.Linear(batch_size, in_features)
         # output shape of nn.Linear(batch_size, out_features)
     def forward(self, texts, questions):# text:(batch_size, step_len, word_len) question:(batch_size, step_len, word_len)
@@ -187,7 +187,7 @@ class ImpatientReaderModel(nn.Module):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
         g = self.attention(texts, questions) 
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
-        choice_output, choice_h_n = self.choice(choices)
+        choice_output = self.choice(choices)
         # r_h_n (num_layers * num_directions, batch, hidden_size)
         #r_o, r_h_n = self.right_answer(replaced_questions[0])
         #w_o, w_h_n = self.wrong_answer(replaced_questions[1])
@@ -220,9 +220,9 @@ class HingeRankLoss(nn.Module):
 class Infersent(nn.Module):
     def __init__(self, c_features):
         super().__init__()
-        self.linear1 = nn.Linear(4 * 2*c_features, 2*c_features)
+        self.linear1 = nn.Linear(4 * c_features, c_features)
         self.dropout = nn.Dropout(p = 0.2)
-        self.linear2 = nn.Linear(2*c_features, 1)
+        self.linear2 = nn.Linear(c_features, 1)
     def forward(self, g, c):
         infersent_similarity = torch.tanh(self.linear1(torch.cat((g, c, torch.abs(g - c), g * c), 1)))
         infersent_similarity = self.dropout(infersent_similarity)
