@@ -183,14 +183,14 @@ class ImpatientReaderModel(nn.Module):
             self.similarity = Infersent(c_features)
     # choices(batch, 4, word_len)
     # replaced_questions(2, batch, 4,word_len), replaced_questions[0,:,:,:] means right answers, replaced_questions[1,:,:,:] means wrong answers.
-    def forward(self, texts, questions, choices, replaced_questions):
+    def forward(self, texts, questions, choices): #, replaced_questions):
         # texts: (batch_size, step_len, word_len)  #questions: (batch_size, step_len, word_len)
         g = self.attention(texts, questions) 
         # g (batch_size, c_dim) where g_dim = c_dim = embedding_dim
         choice_output, choice_h_n = self.choice(choices)
         # r_h_n (num_layers * num_directions, batch, hidden_size)
-        r_o, r_h_n = self.right_answer(replaced_questions[0])
-        w_o, w_h_n = self.wrong_answer(replaced_questions[1])
+        #r_o, r_h_n = self.right_answer(replaced_questions[0])
+        #w_o, w_h_n = self.wrong_answer(replaced_questions[1])
         # choice_output: (batch_size, choice_len, c_dim)
         choice_len = choice_output.size()[1]
         similarity_scores = []
@@ -198,7 +198,7 @@ class ImpatientReaderModel(nn.Module):
             choice_outputs= choice_output[:,i,:] #choice_output(batch_size, dim)
             similarity = self.similarity(g, choice_outputs) #similarity(batch_size)
             similarity_scores.append(similarity) # for accuracy 
-        return similarity_scores, g, r_h_n, w_h_n
+        return similarity_scores#, g, r_h_n, w_h_n
         # similarity_scores #(choice_len, batch)
 
 class HingeRankLoss(nn.Module):

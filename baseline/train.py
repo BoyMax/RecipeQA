@@ -111,6 +111,8 @@ def train(args):
                 outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                 loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
             elif args.loss == "cross_entropy":
+                outputs = model(text, image_feature, question, choice)
+                outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0)
                 loss = criterion(outputs, answer)
             loss.backward()
             optimizer.step()
@@ -143,6 +145,8 @@ def train(args):
                     outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
                     validation_loss = criterion(g, r, w) #outputs:(batch_size, num_classes_similarity), answer:(batch)
                 elif args.loss == "cross_entropy":
+                    outputs = model(text, image_feature, question, choice)
+                    outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0)
                     validation_loss = criterion(outputs, answer)
                 # statistics
                 val_loss += validation_loss.item() 
