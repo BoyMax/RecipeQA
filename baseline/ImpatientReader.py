@@ -171,12 +171,12 @@ class ImpatientReaderModel(nn.Module):
         self.attention = Attention(d_features, q_features, m_features, g_features, embedding_type, embed_hidden_size)
         if embedding_type == 'Doc2Vec':
             self.choice = Choice_Doc2Vec_Net() # for embedding
-            self.right_answer = Hierarchy_Doc2Vec_Net(q_features)
-            self.wrong_answer = Hierarchy_Doc2Vec_Net(q_features)
+            #self.right_answer = Hierarchy_Doc2Vec_Net(q_features)
+            #self.wrong_answer = Hierarchy_Doc2Vec_Net(q_features)
         elif embedding_type == 'ELMo':
             self.choice = Choice_ELMo_Net(c_features, embed_hidden_size)
-            self.right_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
-            self.wrong_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
+            #self.right_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
+            #self.wrong_answer = Hierarchy_Elmo_Net(q_features, embed_hidden_size)
         if similarity_type == 'cosine':
             self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         elif similarity_type == 'infersent':

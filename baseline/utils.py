@@ -150,6 +150,7 @@ def collate_hierarchy_wrapper(batch):
     # padding steps for text and question
     text = padding_steps(text, "step_first")
     question = padding_steps(question, "step_first")
+    choice = padding_steps(choice, "step_first")
     return text, image, question, choice, answer
 
 def collate_batch_hingeRank_wrapper(batch):
