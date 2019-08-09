@@ -111,14 +111,14 @@ def test(args):
             # forward + compute loss and accuracy
             outputs = model(text, image_feature, question, choice) #output is a list, length is 4, each element contains batch_size similarity scores
             outputs = torch.cat(outputs, 0).view(-1, len(answer)).permute(1, 0) # concatenate tensors in the list and transpose it as (batch_size, len_choice)
-            validation_loss = criterion(outputs, answer)
+            testing_loss = criterion(outputs, answer)
             # statistics
-            test_loss += validation_loss.item() 
+            test_loss += testing_loss.item() 
             test_acc += accuracy(outputs, answer)
-    epoch_test_loss = val_loss/len(val_loader)
-    epoch_test_acc = val_acc/len(val_loader)
+    epoch_test_loss = test_loss/len(test_loader)
+    epoch_test_acc = test_acc/len(test_loader)
 
-    log_data(args.log_path, epoch_val_loss, epoch_val_acc)
+    log_data(args.log_path, epoch_test_loss, epoch_test_acc)
     # print every testing epoch
     print('|Epoch %d | Testing loss : %.3f | Testing acc: %.2f | Validation loss: %.3f | Validation acc: %.2f' %
             (epoch + 1, epoch_test_loss, epoch_test_acc))
