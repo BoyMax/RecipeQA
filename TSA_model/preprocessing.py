@@ -291,5 +291,6 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
 if __name__ == "__main__":
     #preprocess(cleanFile='./data/entirety/train_cleaned.json', rawFile='./data/train.json', task='textual_cloze', structure='entirety')
     #preprocess(cleanFile='./data/entirety/val_cleaned.json', rawFile='./data/val.json', task='textual_cloze', structure='entirety')
-    preprocess(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')#, imageFeatureFile='../data/training_features_resnet50.json')
-    preprocess(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')# ,  imageFeatureFile='../data/validation_features_resnet50.json')
+    #preprocess(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')#, imageFeatureFile='../data/training_features_resnet50.json')
+    #preprocess(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')# ,  imageFeatureFile='../data/validation_features_resnet50.json')
+    preprocess(cleanFile='../data/hierarchy/test_cleaned.json', rawFile='../data/test.json', task='textual_cloze', structure='hierarchy') #, imageFeatureFile='../data/test_features_resnet50.json')
