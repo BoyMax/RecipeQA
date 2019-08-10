@@ -120,7 +120,7 @@ def test(args):
 
     log_data(args.log_path, epoch_test_loss, epoch_test_acc)
     # print every testing epoch
-    print('|Epoch %d | Testing loss : %.3f | Testing acc: %.2f | Validation loss: %.3f | Validation acc: %.2f' %
+    print('|Epoch %d | Testing loss : %.4f | Testing acc: %.4f  %
             (epoch + 1, epoch_test_loss, epoch_test_acc))
 
     print('Testing Finished')
