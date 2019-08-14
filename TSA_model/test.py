@@ -48,13 +48,26 @@ def save_model(epoch, model, optimizer,run_loss, val_loss, accuracy, saved_path)
 
 def log_data(log_path,test_loss,test_accuracy):
     file = open(log_path,'a')
-    if torch.cuda.is_available():
-        data = str(test_loss) +' '+ str(f'{test_accuracy:.4f}') 
-    else:
-        data = str(test_loss) + ' '+ str(f'{test_accuracy:.4f}') 
+    data = str(test_loss) +' '+ str(f'{test_accuracy:.4f}') 
     file.write(data)
     file.write('\n')
     file.close()
+
+def log_example(recipe_id, ouputs, answer, correct_example='correct_example.txt', wrong_example='wrong_example.txt'):
+    preds = F.softmax(ouputs, dim=1)
+    correct = 0 
+    pred = preds.max(1, keepdim=True)[1]
+    r_file = open(correct_example,'a')
+    w_file = open(wrong_example,'a')
+    for i in range(len(pred)):
+        if pred[i].eq(answer[i]):
+            r_file.write(str(recipe_id)+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
+            r_file.write('\n')
+        else:
+            w_file.write(str(recipe_id)+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
+            w_file.write('\n')
+    r_file.close()
+    w_file.close()
 
 def test(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -104,7 +117,7 @@ def test(args):
     test_loss = 0
     test_acc = 0
     with torch.no_grad():
-        for batch_index, (text, image, question, choice, answer) in tqdm(enumerate(test_loader)):
+        for batch_index, (text, image, question, choice, answer, recipe_id) in tqdm(enumerate(test_loader)):
             #image_feature = extract_image_feature(image, img_features)
             image_feature=''
             answer = torch.LongTensor(answer).to(device)
@@ -115,13 +128,14 @@ def test(args):
             # statistics
             test_loss += testing_loss.item() 
             test_acc += accuracy(outputs, answer)
+            log_example(recipe_id, outputs, answer)
     epoch_test_loss = test_loss/len(test_loader)
     epoch_test_acc = test_acc/len(test_loader)
 
     log_data(args.log_path, epoch_test_loss, epoch_test_acc)
     # print every testing epoch
-    print('|Epoch %d | Testing loss : %.4f | Testing acc: %.4f'  %
-            (epoch + 1, epoch_test_loss, epoch_test_acc))
+    print('Testing loss : %.4f | Testing acc: %.4f'  %
+            (epoch_test_loss, epoch_test_acc))
 
     print('Testing Finished')
 

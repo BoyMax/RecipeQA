@@ -8,7 +8,8 @@ import numpy as np
 
 class recipeDataset(Data.Dataset):
     def __init__(self, cleanFile,rawFile, task, structure):
-        text, images, question, choices, answer = preprocess(cleanFile,rawFile, task, structure)  # other parameters use as default parameters
+        text, images, question, choices, answer, recipe_id = preprocess(cleanFile,rawFile, task, structure)  # other parameters use as default parameters
+        self.recipe_id = recipe_id
         self.text = text
         self.images = images
         self.question = question
@@ -17,12 +18,13 @@ class recipeDataset(Data.Dataset):
     def __len__(self):
         return len(self.answer) # the number of recipe
     def __getitem__(self, index):
+        recipe_id = self.recipe_id[index]
         text = self.text[index]
         images = self.images[index]
         question = self.question[index]
         choices = self.choices[index]
         answer = self.answer[index]
-        return text, images, question, choices, answer
+        return text, images, question, choices, answer,recipe_id
 
 # padding before make batch(collate_hierarchy_wrapper) 
 def padding_steps(content, type):  #type could be batch_first, or step_first(for hierarchy structure)
@@ -166,12 +168,13 @@ def collate_hierarchy_wrapper(batch):
     question = list(transposed_data[2])
     choice = list(transposed_data[3])
     answer = list(transposed_data[4])
+    recipe_id = list(transposed_data[5])
     # padding steps for text and question
     text = padding_steps(text, "step_first")
     question = padding_steps(question, "step_first")
     choice = padding_steps(choice, "step_first")
     #image = padding_imgs(image)
-    return text, image, question, choice, answer
+    return text, image, question, choice, answer, recipe_id
 
 def collate_batch_hingeRank_wrapper(batch):
     transposed_data = list(zip(*batch))
