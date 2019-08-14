@@ -61,10 +61,10 @@ def log_example(recipe_id, ouputs, answer, correct_example='correct_example.txt'
     w_file = open(wrong_example,'a')
     for i in range(len(pred)):
         if pred[i].eq(answer[i]):
-            r_file.write(str(recipe_id)+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
+            r_file.write(str(recipe_id[i])+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
             r_file.write('\n')
         else:
-            w_file.write(str(recipe_id)+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
+            w_file.write(str(recipe_id[i])+':  predicted answer:['+str(pred[i])+']   answer:['+str(answer[i])+']')
             w_file.write('\n')
     r_file.close()
     w_file.close()
