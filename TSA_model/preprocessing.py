@@ -230,7 +230,7 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
         recipe_question = recipe['question']
         recipe_image = recipe['image']
         f.close()
-        return recipe_text, recipe_image, recipe_question, recipe_choice, recipe_answer,recipe_id
+        return recipe_text, recipe_image, recipe_question, recipe_choice, recipe_answer,recipe_qid
     except IOError: #File is not accessible, create a clean file
         textual_cloze_data = extract_textual_cloze_data(rawFile, task)
         #img_features = read_imgs_file(imageFeatureFile)
