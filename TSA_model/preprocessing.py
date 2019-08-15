@@ -223,7 +223,7 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
         f = open(cleanFile, 'r', encoding='utf8')
         data = f.read()
         recipe = json.loads(data) #json file contains data in str, convert str to dict
-        recipe_id = recipe['id']
+        recipe_qid = recipe['qid']
         recipe_text = recipe['text']
         recipe_answer = recipe['answer']
         recipe_choice = recipe['choice']
@@ -237,7 +237,7 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
         data = textual_cloze_data['data']
         question_list = []
         choice_list = []
-        id_list=[]
+        qid_list=[]
         answer_list = []
         text_list = []
         image_list = []
@@ -259,7 +259,7 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                 text_list.append(clean_string(text_entire))
                 image_list.append(images)
                 choice_list.append(choices)
-                id_list.append(recipe['recipe_id'])
+                qid_list.append(recipe['qid'])
                 answer_list.append(recipe['answer'])
         elif structure == 'hierarchy':
             for recipe in data:
@@ -280,18 +280,33 @@ def preprocess(cleanFile, rawFile='./data/train.json', task='textual_cloze', str
                 text_list.append(texts)
                 image_list.append(images)
                 choice_list.append(choices)
-                id_list.append(recipe['recipe_id'])
+                qid_list.append(recipe['qid'])
                 answer_list.append(recipe['answer'])
         recipes = {}
         recipes['text'] = text_list
-        recipes['id']=id_list
+        recipes['qid']=qid_list
         recipes['answer'] = answer_list
         recipes['choice'] = choice_list
         recipes['question'] = question_list
         recipes['image'] = image_list
         with open(cleanFile, 'w', encoding='utf8') as f:
             json.dump(recipes, f, indent=4, ensure_ascii=False) # convert dict to str and write, indent means change row
-        return text_list, image_list, question_list, choice_list, answer_list,id_list
+        return text_list, image_list, question_list, choice_list, answer_list,qid_list
+
+
+def output_textual_cloze_data(rawFile='../data/test.json', task='textual_cloze'):
+    f = open(rawFile, 'r', encoding='utf8').read()
+    task_dict = json.loads(f)
+    data = task_dict['data']#train file format {'data':[{},{},{}]} 
+    recipes = [] 
+    for recipe in data:
+        if recipe['task'] == task:
+            recipes.append(recipe) 
+    new_data={}
+    new_data['data'] = recipes 
+    with open('../data/test_textual_cloze.json', 'w', encoding='utf8') as f:
+            json.dump(new_data, f, indent=4, ensure_ascii=False) 
+    return new_data
 
 if __name__ == "__main__":
     #preprocess(cleanFile='./data/entirety/train_cleaned.json', rawFile='./data/train.json', task='textual_cloze', structure='entirety')
@@ -299,3 +314,4 @@ if __name__ == "__main__":
     #preprocess(cleanFile='../data/hierarchy/train_cleaned.json', rawFile='../data/train.json', task='textual_cloze', structure='hierarchy')#, imageFeatureFile='../data/training_features_resnet50.json')
     #preprocess(cleanFile='../data/hierarchy/val_cleaned.json', rawFile='../data/val.json', task='textual_cloze', structure='hierarchy')# ,  imageFeatureFile='../data/validation_features_resnet50.json')
     preprocess(cleanFile='../data/hierarchy/test_cleaned.json', rawFile='../data/test.json', task='textual_cloze', structure='hierarchy') #, imageFeatureFile='../data/test_features_resnet50.json')
+    #output_textual_cloze_data()
